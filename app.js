@@ -75,28 +75,25 @@ app.get('/debug-db', async (req, res) => {
 
 // Lazy‑mount routes on first request, then continue
 let routesMounted = false;
-app.use(async (req, _res, next) => {
-  if (!routesMounted) {
-    const [{ default: authRoutes }, { default: posRoutes }, { default: productRoutes }, { default: orderRoutes }, { default: reportRoutes }] = await Promise.all([
-      import('./routes/authRoutes.js'),
-      import('./routes/posRoutes.js'),
-      import('./routes/productRoutes.js'),
-      import('./routes/orderRoutes.js'),
-      import('./routes/reportRoutes.js'),
-    ]);
-    app.get('/', (req2, res2) => res2.redirect('/pos'));
-    app.use(authRoutes);
-    app.use(posRoutes);
-    app.use(productRoutes);
-    app.use(orderRoutes);
-    app.use(reportRoutes);
-    routesMounted = true;
-  }
-  next();
-});
-
-// 404 and error handler
-app.use(notFound);
-app.use(errorHandler);
+export async function ensureRoutes() {
+  if (routesMounted) return;
+  const [{ default: authRoutes }, { default: posRoutes }, { default: productRoutes }, { default: orderRoutes }, { default: reportRoutes }] = await Promise.all([
+    import('./routes/authRoutes.js'),
+    import('./routes/posRoutes.js'),
+    import('./routes/productRoutes.js'),
+    import('./routes/orderRoutes.js'),
+    import('./routes/reportRoutes.js'),
+  ]);
+  app.get('/', (req, res) => res.redirect('/pos'));
+  app.use(authRoutes);
+  app.use(posRoutes);
+  app.use(productRoutes);
+  app.use(orderRoutes);
+  app.use(reportRoutes);
+  // Now attach 404 and error handlers at the end
+  app.use(notFound);
+  app.use(errorHandler);
+  routesMounted = true;
+}
 
 export default app;

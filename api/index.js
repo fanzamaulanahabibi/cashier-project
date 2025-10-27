@@ -9,7 +9,8 @@ export default async function handler(req, res) {
       return;
     }
     // Lazy-load Express app to avoid hanging during cold start if a heavy import blocks
-    const { app } = await import('../app.js');
+    const { app, ensureRoutes } = await import('../app.js');
+    await ensureRoutes();
     const wrapped = serverless(app);
     return wrapped(req, res);
   } catch (e) {
