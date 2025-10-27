@@ -2,7 +2,6 @@
   "version": 2,
   "functions": {
     "api/**/*.js": {
-      "runtime": "@vercel/node@3.0.0",
       "includeFiles": "{node_modules/iron-session/**,node_modules/drizzle-orm/**,node_modules/@neondatabase/serverless/**}"
     }
   },
