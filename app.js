@@ -6,11 +6,7 @@ import dayjs from 'dayjs';
 import { createSessionMiddleware } from './config/session.js';
 import { SHOP, STANDARD_CATEGORIES } from './config/shop.js';
 
-import authRoutes from './routes/authRoutes.js';
-import posRoutes from './routes/posRoutes.js';
-import productRoutes from './routes/productRoutes.js';
-import orderRoutes from './routes/orderRoutes.js';
-import reportRoutes from './routes/reportRoutes.js';
+// Routes will be lazy-mounted on first request to avoid heavy cold-start imports
 import { notFound, errorHandler } from './middleware/error.js';
 
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
@@ -77,15 +73,27 @@ app.get('/debug-db', async (req, res) => {
   }
 });
 
-// Root redirect
-app.get('/', (req, res) => res.redirect('/pos'));
-
-// Routes
-app.use(authRoutes);
-app.use(posRoutes);
-app.use(productRoutes);
-app.use(orderRoutes);
-app.use(reportRoutes);
+// Lazy‑mount routes on first request, then continue
+let routesMounted = false;
+app.use(async (req, _res, next) => {
+  if (!routesMounted) {
+    const [{ default: authRoutes }, { default: posRoutes }, { default: productRoutes }, { default: orderRoutes }, { default: reportRoutes }] = await Promise.all([
+      import('./routes/authRoutes.js'),
+      import('./routes/posRoutes.js'),
+      import('./routes/productRoutes.js'),
+      import('./routes/orderRoutes.js'),
+      import('./routes/reportRoutes.js'),
+    ]);
+    app.get('/', (req2, res2) => res2.redirect('/pos'));
+    app.use(authRoutes);
+    app.use(posRoutes);
+    app.use(productRoutes);
+    app.use(orderRoutes);
+    app.use(reportRoutes);
+    routesMounted = true;
+  }
+  next();
+});
 
 // 404 and error handler
 app.use(notFound);
