@@ -1,7 +1,7 @@
 // Postinstall check to confirm critical dependencies exist in the Vercel build logs
 // Safe to remove after verification
 const checks = [
-  { label: 'iron-session', path: 'iron-session/package.json' },
+  { label: 'cookie-session', path: 'cookie-session/package.json' },
   { label: 'drizzle-orm', path: 'drizzle-orm/package.json' },
   { label: '@neondatabase/serverless', path: '@neondatabase/serverless/package.json' },
 ];
@@ -17,4 +17,3 @@ const checks = [
     }
   }
 })();
-

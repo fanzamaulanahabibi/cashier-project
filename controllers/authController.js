@@ -27,5 +27,9 @@ export async function postLogin(req, res) {
 }
 
 export function logout(req, res) {
-  req.session.destroy(() => res.redirect('/login'));
+  try {
+    // cookie-session: destroy by clearing session object
+    req.session = null;
+  } catch (_) { /* ignore */ }
+  res.redirect('/login');
 }

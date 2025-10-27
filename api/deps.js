@@ -1,5 +1,5 @@
 // Force static imports so the bundler includes these packages in this function bundle
-import 'iron-session/express';
+import 'cookie-session';
 import { drizzle } from 'drizzle-orm/neon-http';
 import { neon } from '@neondatabase/serverless';
 
