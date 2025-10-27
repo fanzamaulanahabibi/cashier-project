@@ -1,21 +1,15 @@
-export default async function handler(req, res) {
-  const result = { ok: true, deps: {}, env: process.env.NODE_ENV || 'development' };
+// Force static imports so the bundler includes these packages in this function bundle
+import 'iron-session/express';
+import { drizzle } from 'drizzle-orm/neon-http';
+import { neon } from '@neondatabase/serverless';
 
-  async function check(label, pkgPath) {
-    try {
-      const m = await import(pkgPath);
-      const version = (m && (m.version || m.default?.version)) || null;
-      result.deps[label] = { ok: true, version };
-    } catch (e) {
-      result.ok = false;
-      result.deps[label] = { ok: false, error: String(e) };
-    }
-  }
-
-  await check('iron-session', 'iron-session/package.json');
-  await check('drizzle-orm', 'drizzle-orm/package.json');
-  await check('@neondatabase/serverless', '@neondatabase/serverless/package.json');
-
-  res.status(result.ok ? 200 : 500).json(result);
+export default function handler(req, res) {
+  // If any of the imports above were missing, the function would fail to build or throw on invocation.
+  res.status(200).json({
+    ok: true,
+    iron: true,
+    drizzle: typeof drizzle === 'function',
+    neon: typeof neon === 'function',
+    env: process.env.NODE_ENV || 'development',
+  });
 }
-
