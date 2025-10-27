@@ -48,6 +48,16 @@ app.use(productRoutes);
 app.use(orderRoutes);
 app.use(reportRoutes);
 
+// Simple health endpoint for uptime checks
+app.get('/health', (req, res) => {
+  res.json({
+    ok: true,
+    service: 'coffee-pos',
+    time: new Date().toISOString(),
+    env: process.env.NODE_ENV || 'development',
+  });
+});
+
 // 404 and error handler
 app.use(notFound);
 app.use(errorHandler);
