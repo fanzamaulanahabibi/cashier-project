@@ -13,6 +13,5 @@ temp/
 README.md
 drizzle.config.ts
 src/
-scripts/
 .eslintrc.json
 .eslintignore

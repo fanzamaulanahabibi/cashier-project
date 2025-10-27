@@ -10,6 +10,20 @@ export function createSessionMiddleware(app) {
   const isProduction = process.env.NODE_ENV === 'production';
   const sessionSecret = process.env.SESSION_SECRET;
   const secret = (sessionSecret || '').trim();
+  const disable = (process.env.DISABLE_SESSION || '').trim();
+  const disableSession = disable === '1' || disable.toLowerCase() === 'true';
+
+  if (disableSession) {
+    // Fallback no-op session for diagnostics only
+    console.warn('Session middleware disabled via DISABLE_SESSION. Do not use in production.');
+    return (req, _res, next) => {
+      if (!req.session) req.session = {};
+      // minimal shims for existing code paths
+      req.session.destroy = (cb) => { try { if (cb) cb(); } catch (_) {} };
+      req.session.save = async () => {};
+      next();
+    };
+  }
   if (isProduction && !secret) {
     throw new Error('SESSION_SECRET environment variable must be set in production.');
   }

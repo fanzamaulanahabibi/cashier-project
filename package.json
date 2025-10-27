@@ -8,6 +8,7 @@
     "seed": "node seed.js",
     "reset-password": "node scripts/reset-password.js",
     "create-user": "node scripts/create-user.js",
+    "postinstall": "node scripts/postinstall-check.js",
     "lint": "eslint . --ext .js",
     "lint:fix": "eslint . --ext .js --fix",
     "db:generate": "drizzle-kit generate:pg",
@@ -33,6 +34,5 @@
     "eslint": "^8.57.0" 
   }
 }
-
 
 
