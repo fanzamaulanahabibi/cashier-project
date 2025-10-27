@@ -1,0 +1,30 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+logs/
+
+# Env and local config
+.env
+.env.*
+.vercel/
+.DS_Store
+.vscode/
+
+# Build outputs / caches
+dist/
+build/
+coverage/
+.cache/
+tmp/
+temp/
+
+# Local data (not for repo)
+data/
+
+# Drizzle/dev artifacts (keep schema + client, ignore tmp)
+drizzle/*.tmp
+

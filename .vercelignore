@@ -1,0 +1,18 @@
+# Exclude non-runtime files from Vercel upload
+.git/
+node_modules/
+.env*
+data/
+coverage/
+dist/
+build/
+.cache/
+tmp/
+temp/
+.vscode/
+README.md
+drizzle.config.ts
+src/
+scripts/
+.eslintrc.json
+.eslintignore

@@ -1,0 +1,93 @@
+<% const content = () => { %>
+<% const filterFrom = (typeof filters !== 'undefined' && filters && filters.from) ? filters.from : dayjs().format('YYYY-MM-DD'); %>
+<% const filterTo = (typeof filters !== 'undefined' && filters && filters.to) ? filters.to : dayjs().format('YYYY-MM-DD'); %>
+<% const isAdmin = currentUser && currentUser.role === 'admin'; %>
+<% const totalTransaksi = rows.length; %>
+<% const rataRata = totalTransaksi ? Math.round(total / totalTransaksi) : 0; %>
+<% const sameDay = filterFrom === filterTo; %>
+<% const rangeLabel = sameDay
+  ? dayjs(filterFrom).format('DD MMMM YYYY')
+  : dayjs(filterFrom).format('DD MMM YYYY') + ' - ' + dayjs(filterTo).format('DD MMM YYYY'); %>
+<div class="flex flex-col gap-6 animate-fade-in">
+  <div>
+    <span class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand/10 text-brand text-xs font-semibold uppercase tracking-wider w-max mb-2">
+      Laporan Penjualan
+    </span>
+    <h1 class="text-3xl font-semibold text-strong">Laporan Penjualan</h1>
+    <p class="text-sm text-muted mt-1">Pilih rentang tanggal untuk melihat performa penjualan warung Anda.</p>
+  </div>
+
+  <form method="GET" class="glass-card px-6 py-5 flex flex-col sm:flex-row sm:items-end gap-4" style="background: var(--surface-muted); border: 1px solid var(--border-soft);">
+    <div class="flex-1">
+      <label class="block text-xs uppercase tracking-wider text-subtle mb-2">Mulai</label>
+      <input type="date" name="from" value="<%= filterFrom %>" class="w-full glass-input px-3 py-2">
+    </div>
+    <div class="flex-1">
+      <label class="block text-xs uppercase tracking-wider text-subtle mb-2">Selesai</label>
+      <input type="date" name="to" value="<%= filterTo %>" class="w-full glass-input px-3 py-2">
+    </div>
+    <div class="flex flex-wrap gap-3">
+      <button class="inline-flex items-center justify-center rounded-xl px-4 py-2.5 font-semibold transition glass-button">Lihat Laporan</button>
+      <% if (isAdmin) { %>
+        <a
+          class="inline-flex items-center justify-center rounded-xl px-4 py-2.5 font-semibold transition glass-button"
+          href="/reports/export.csv?from=<%= filterFrom %>&to=<%= filterTo %>"
+          target="_blank"
+        >Export CSV</a>
+      <% } %>
+    </div>
+  </form>
+
+  <div class="grid sm:grid-cols-3 gap-4">
+    <div class="glass-card p-5">
+      <p class="text-xs uppercase tracking-wider text-subtle">Periode</p>
+      <p class="text-lg font-semibold text-strong mt-1"><%= rangeLabel %></p>
+    </div>
+    <div class="glass-card p-5">
+      <p class="text-xs uppercase tracking-wider text-subtle">Total Transaksi</p>
+      <p class="text-lg font-semibold text-strong mt-1"><%= totalTransaksi %> transaksi</p>
+    </div>
+    <div class="glass-card p-5" style="border: 1px solid rgba(15,118,110,0.2); background: rgba(15,118,110,0.08);">
+      <p class="text-xs uppercase tracking-wider text-subtle">Total Penjualan</p>
+      <p class="text-lg font-semibold text-accent mt-1"><%= rupiah(total) %></p>
+      <p class="text-xs text-muted mt-2">Rata-rata <%= rupiah(rataRata) %> per transaksi</p>
+    </div>
+  </div>
+
+  <% if (rows.length) { %>
+    <div class="glass-card overflow-hidden glass-table">
+      <div class="overflow-x-auto px-4 pb-4">
+        <table class="w-full text-sm">
+          <thead class="text-xs uppercase tracking-wider text-muted">
+            <tr>
+              <th class="px-4 py-3 text-left">Order</th>
+              <th class="px-4 py-3 text-left">Waktu</th>
+              <th class="px-4 py-3 text-left kasir-cell">Kasir</th>
+              <th class="px-4 py-3 text-left">Produk</th>
+              <th class="px-4 py-3 text-left">Total</th>
+              <th class="px-4 py-3 text-left">Pembayaran</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% rows.forEach(row => { %>
+              <tr class="transition">
+                <td class="px-4 py-3 font-medium text-strong">#<%= row.id %></td>
+                <td class="px-4 py-3 text-base"><%= dayjs(row.created_at).format('DD MMM YYYY HH:mm') %></td>
+                <td class="px-4 py-3 text-base kasir-cell"><%= row.cashier || '-' %></td>
+                <td class="px-4 py-3 text-sm text-muted"><%= row.product_summary ? row.product_summary : '-' %></td>
+                <td class="px-4 py-3 font-semibold text-accent"><%= rupiah(row.total) %></td>
+                <td class="px-4 py-3 text-base"><%= (row.payment_method || '-').toUpperCase() %></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  <% } else { %>
+    <div class="glass-card border border-dashed border-[rgba(120,53,15,0.25)] bg-white px-6 py-12 text-center text-sm text-muted">
+      Tidak ada transaksi pada periode ini.
+    </div>
+  <% } %>
+</div>
+<% } %>
+<%- include('wrapper', { title: 'Laporan', content }) %>

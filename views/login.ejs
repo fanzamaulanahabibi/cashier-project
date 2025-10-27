@@ -1,0 +1,26 @@
+<% const content = () => { %>
+<div class="max-w-sm mx-auto space-y-6 animate-fade-in">
+  <div class="glass-card p-6 text-base" style="background: linear-gradient(135deg, rgba(217,119,6,0.15), rgba(255,248,235,0.95)); border: 1px solid var(--border-soft);">
+    <h1 class="text-2xl font-semibold text-strong">Kasir Warung Agen Sembako</h1>
+    <p class="text-sm text-muted mt-1">Masuk untuk mengelola transaksi dan stok produk.</p>
+  </div>
+  <div class="glass-card p-6">
+    <h2 class="text-lg font-semibold text-strong mb-4">Selamat datang kembali</h2>
+  <% if (error) { %>
+    <div class="px-3 py-2 rounded-xl mb-3 text-sm" style="background: rgba(220,38,38,0.12); color: var(--status-danger); border: 1px solid rgba(220,38,38,0.32);"><%= error %></div>
+  <% } %>
+  <form method="POST" action="/login" class="space-y-4">
+    <div>
+      <label class="block text-xs uppercase tracking-wider text-subtle mb-1">Username</label>
+      <input name="username" class="w-full glass-input px-3 py-2" required />
+    </div>
+    <div>
+      <label class="block text-xs uppercase tracking-wider text-subtle mb-1">Password</label>
+      <input name="password" type="password" class="w-full glass-input px-3 py-2" required />
+    </div>
+    <button class="w-full rounded-xl px-3 py-2.5 font-semibold transition glass-button alt">Masuk</button>
+  </form>
+  </div>
+</div>
+<% } %>
+<%- include('wrapper', { title: 'Login', content }) %>

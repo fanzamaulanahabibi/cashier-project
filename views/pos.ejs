@@ -1,0 +1,331 @@
+<% const content = () => { 
+  const productPayload = products.map(p => ({
+    id: p.id,
+    name: p.name,
+    category: p.category || '',
+    price: p.price,
+    stock: p.stock,
+  }));
+  const categoryPayload = categories;
+%>
+<script id="pos-data" type="application/json"><%- JSON.stringify({ products: productPayload, categories: categoryPayload }) %></script>
+<script>
+  (function () {
+    try {
+      const raw = document.getElementById('pos-data')?.textContent || '{}';
+      window.__POS_DATA__ = JSON.parse(raw);
+    } catch (err) {
+      console.error('Gagal mem-parsing data POS', err);
+      window.__POS_DATA__ = { products: [], categories: [] };
+    }
+  })();
+</script>
+
+<div class="flex flex-col gap-8 text-base">
+  <div class="space-y-3 animate-fade-in">
+    <span class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-brand/15 text-brand text-sm font-medium shadow-soft w-max" style="border: 1px solid rgba(15,118,110,0.25);">
+      Dashboard Kasir
+    </span>
+    <h1 class="text-3xl lg:text-4xl font-semibold text-strong">Kasir Warung Agen Sembako</h1>
+    <p class="text-sm text-muted">
+      Atur transaksi, kelola stok, dan selesaikan pembayaran pelanggan dengan antarmuka yang bersih dan ramah.
+    </p>
+  </div>
+
+  <div x-data="posApp()" x-cloak class="space-y-6 animate-fade-in">
+    <div class="grid lg:grid-cols-5 gap-6">
+      <div class="lg:col-span-3 flex flex-col gap-5">
+        <div class="glass-card p-5 space-y-4 transition hover:-translate-y-0.5">
+          <div class="relative">
+            <span class="absolute inset-y-0 left-3 flex items-center text-brandDeep/70">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="m21 21-4.35-4.35M19 11a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z"/></svg>
+            </span>
+            <input
+              x-model="search"
+              placeholder="Cari produk atau kategori..."
+              class="w-full glass-input pl-10 pr-4 py-3 focus:ring-2 focus:ring-brand/25 transition shadow-soft text-base placeholder:text-subtle"
+            >
+          </div>
+
+          <template x-if="categories.length">
+            <div class="flex flex-wrap gap-2">
+              <button
+                type="button"
+                class="px-3 py-1.5 rounded-full text-sm transition-all badge-glass"
+                :class="activeCategory === '' ? 'ring-2 ring-brand/40 shadow-soft' : 'opacity-70 hover:opacity-100'"
+                @click="setCategory('')"
+              >
+                Semua
+              </button>
+              <template x-for="cat in categories" :key="cat">
+                <button
+                  type="button"
+                  class="px-3 py-1.5 rounded-full text-sm transition-all badge-glass"
+                  :class="activeCategory === cat ? 'ring-2 ring-brand/40 shadow-soft' : 'opacity-70 hover:opacity-100'"
+                  x-text="cat"
+                  @click="setCategory(cat)"
+                ></button>
+              </template>
+            </div>
+          </template>
+        </div>
+
+        <div class="glass-card p-5">
+          <template x-if="filteredProducts().length">
+            <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
+              <template x-for="product in filteredProducts()" :key="product.id">
+                <div
+                  class="group relative rounded-2xl p-4 hover:border-brand/60 hover:shadow-glow hover:-translate-y-1 transition-all duration-200"
+                  style="border: 1px solid rgba(120,53,15,0.18); background: rgba(255,248,235,0.92);"
+                  data-product-card
+                  @click="add(product)"
+                >
+                  <div class="flex flex-col gap-2">
+                    <span
+                      class="inline-flex items-center px-2 py-1 rounded-full text-[11px] uppercase tracking-wide font-medium badge-glass"
+                      x-text="product.category || 'Umum'"
+                    ></span>
+                    <div class="text-base font-semibold leading-tight" x-text="product.name"></div>
+                    <div class="text-sm">Stok: <span x-text="product.stock ?? 0"></span></div>
+                    <div class="text-lg font-semibold text-accent" x-text="window.formatIDR(product.price)"></div>
+                  </div>
+                  <span class="absolute right-3 top-3 text-brand hidden group-hover:inline-flex text-lg leading-none animate-float">+</span>
+                </div>
+              </template>
+            </div>
+          </template>
+          <template x-if="!filteredProducts().length">
+            <div class="text-center text-sm text-muted py-10">
+              Tidak ditemukan produk yang cocok.
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <div class="lg:col-span-2">
+        <div class="glass-card p-6 space-y-4 transition hover:-translate-y-0.5">
+          <div class="flex items-center justify-between text-base">
+            <div>
+              <h2 class="text-lg font-semibold text-strong flex items-center gap-2">
+                <span class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-brand text-white text-sm font-semibold shadow-soft">KW</span>
+                Keranjang
+              </h2>
+              <p class="text-xs text-muted" x-text="cartSummary()"></p>
+            </div>
+            <button type="button" class="text-xs transition glass-button" @click="clearCart()" x-show="items.length">Kosongkan</button>
+          </div>
+          <div class="space-y-3 max-h-72 overflow-y-auto pr-1 custom-scroll">
+            <template x-if="items.length === 0">
+              <div class="text-sm text-muted border border-dashed rounded-xl px-4 py-6 text-center" style="border-color: rgba(120,53,15,0.25); background: rgba(244, 233, 210, 0.35);">Belum ada item. Pilih produk untuk memulai.</div>
+            </template>
+            <template x-for="(item, idx) in items" :key="item.id">
+            <div class="flex items-start justify-between gap-3 rounded-xl px-3 py-3 hover:border-brand/40 transition-all shadow-sm" style="border: 1px solid rgba(120,53,15,0.18); background: rgba(255,250,244,0.95);">
+                <div class="flex-1">
+                  <div class="font-medium text-strong" x-text="item.name"></div>
+                  <div class="text-xs text-muted flex items-center gap-2 mt-1">
+                    <span x-text="window.formatIDR(item.price)"></span>
+                    <span class="text-subtle">&middot;</span>
+                    <label class="inline-flex items-center gap-1">
+                      <span>Qty</span>
+                      <input
+                        type="number"
+                        min="1"
+                        class="w-16 glass-input px-2 py-1 text-sm"
+                        x-model.number="item.qty"
+                        @input="recalc()"
+                      />
+                    </label>
+                  </div>
+                </div>
+                <div class="flex flex-col items-end gap-2">
+                  <div class="text-sm font-semibold text-accent" x-text="window.formatIDR(item.price * item.qty)"></div>
+                  <button
+                    class="inline-flex h-7 w-7 items-center justify-center rounded-full glass-button transition px-0"
+                    @click="remove(idx)"
+                    title="Hapus item"
+                  >
+                    &times;
+                  </button>
+                </div>
+              </div>
+            </template>
+          </div>
+
+          <div class="pt-3 space-y-2 text-sm" style="border-top: 1px solid var(--border-soft);">
+            <div class="flex justify-between text-base">
+              <span>Total</span>
+              <span class="text-lg font-semibold text-strong" x-text="window.formatIDR(total())"></span>
+            </div>
+
+            <div>
+              <label class="block text-xs uppercase tracking-wider text-subtle mb-2">Metode Pembayaran</label>
+              <div class="grid grid-cols-3 gap-2">
+                <label class="relative">
+                  <input type="radio" value="cash" x-model="payment_method" class="peer sr-only">
+                  <div
+                    class="chip-glass px-3 py-2 text-center text-xs font-medium cursor-pointer transition"
+                    :class="payment_method === 'cash' ? 'ring-2 ring-brand/40 shadow-soft' : 'opacity-70 hover:opacity-100'"
+                  >Cash</div>
+                </label>
+                <label class="relative">
+                  <input type="radio" value="qris" x-model="payment_method" class="peer sr-only">
+                  <div
+                    class="chip-glass px-3 py-2 text-center text-xs font-medium cursor-pointer transition"
+                    :class="payment_method === 'qris' ? 'ring-2 ring-brand/40 shadow-soft' : 'opacity-70 hover:opacity-100'"
+                  >QRIS</div>
+                </label>
+                <label class="relative">
+                  <input type="radio" value="card" x-model="payment_method" class="peer sr-only">
+                  <div
+                    class="chip-glass px-3 py-2 text-center text-xs font-medium cursor-pointer transition"
+                    :class="payment_method === 'card' ? 'ring-2 ring-brand/40 shadow-soft' : 'opacity-70 hover:opacity-100'"
+                  >Kartu</div>
+                </label>
+              </div>
+            </div>
+
+            <template x-if="payment_method === 'cash'">
+              <div class="space-y-2">
+                <label class="block text-xs uppercase tracking-wider text-subtle">Uang Diterima</label>
+                <input
+                  x-model.number="cash_received"
+                  type="number"
+                  min="0"
+                  class="w-full glass-input px-3 py-2"
+                >
+                <div class="flex justify-between text-xs text-base">
+                  <span>Kembalian</span>
+                  <span class="font-semibold text-strong" x-text="window.formatIDR(change())"></span>
+                </div>
+              </div>
+            </template>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3 pt-2">
+            <button
+              type="button"
+              class="rounded-xl px-3 py-2.5 font-semibold transition disabled:opacity-40 glass-button"
+              :disabled="items.length === 0"
+              @click="checkout(false)"
+            >
+              Bayar
+            </button>
+
+            <button
+              type="button"
+              class="rounded-xl px-3 py-2.5 font-semibold transition disabled:opacity-40 glass-button"
+              :disabled="items.length === 0"
+              @click="checkout(true)"
+            >
+              Bayar & Cetak
+            </button>
+          </div>
+
+          <div
+            x-show="message"
+            class="text-sm mt-2 px-3 py-2 transition badge-glass positive inline-flex"
+            x-text="message"
+          ></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function posApp() {
+  const globalData = window.__POS_DATA__ || {};
+  return {
+    search: '',
+    activeCategory: '',
+    products: Array.isArray(globalData.products) ? globalData.products : [],
+    categories: Array.isArray(globalData.categories) ? globalData.categories : [],
+    items: [],
+    payment_method: 'cash',
+    cash_received: 0,
+    message: '',
+    filteredProducts() {
+      const keyword = (this.search || '').trim().toLowerCase();
+      const category = (this.activeCategory || '').toLowerCase();
+      return this.products.filter((product) => {
+        const name = (product.name || '').toLowerCase();
+        const cat = (product.category || '').toLowerCase();
+        const matchKeyword = !keyword || name.includes(keyword) || cat.includes(keyword);
+        const matchCategory = !category || cat === category;
+        return matchKeyword && matchCategory;
+      });
+    },
+    cartSummary() {
+      if (!this.items.length) return 'Belum ada item di keranjang';
+      const totalQty = this.items.reduce((sum, item) => sum + item.qty, 0);
+      return `${this.items.length} produk - ${totalQty} item`;
+    },
+    setCategory(cat) {
+      this.activeCategory = cat || '';
+    },
+    add(product) {
+      const idx = this.items.findIndex((item) => item.id === product.id);
+      if (idx >= 0) this.items[idx].qty += 1;
+      else this.items.push({ id: product.id, name: product.name, price: product.price, qty: 1 });
+      this.recalc();
+      this.message = '';
+    },
+    remove(index) {
+      this.items.splice(index, 1);
+      this.recalc();
+    },
+    clearCart() {
+      this.items = [];
+      this.cash_received = 0;
+      this.message = '';
+    },
+    total() {
+      return this.items.reduce((sum, item) => sum + item.price * item.qty, 0);
+    },
+    change() {
+      return Math.max(0, (this.cash_received || 0) - this.total());
+    },
+    recalc() {
+      this.items = this.items.map((item) => ({
+        ...item,
+        qty: Math.max(1, parseInt(item.qty || 1, 10) || 1),
+      }));
+    },
+    async checkout(autoPrint) {
+      if (this.items.length === 0) {
+        this.message = 'Keranjang kosong';
+        return;
+      }
+
+      try {
+        const res = await fetch('/pos/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            items: this.items.map((i) => ({ product_id: i.id, qty: i.qty })),
+            payment_method: this.payment_method,
+            cash_received: this.payment_method === 'cash' ? this.cash_received : 0,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Gagal checkout');
+
+        this.items = [];
+        this.cash_received = 0;
+        this.message = 'Transaksi berhasil.';
+
+        if (autoPrint && data.redirectUrl) {
+          window.location.href = data.redirectUrl;
+        } else {
+          window.location.href = '/orders';
+        }
+      } catch (e) {
+        this.message = e.message;
+      }
+    },
+
+  }
+}
+</script>
+<% } %>
+<%- include('wrapper', { title: 'Kasir', content }) %>

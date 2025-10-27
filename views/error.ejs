@@ -1,0 +1,14 @@
+<% const content = () => { %>
+<div class="glass-card p-6 animate-fade-in">
+  <h1 class="text-2xl font-semibold text-strong mb-2">Error <%= status %></h1>
+  <p class="text-sm text-muted mb-4"><%= message %></p>
+  <% if (stack) { %>
+    <pre class="text-xs overflow-auto" style="white-space:pre-wrap; background: var(--surface-muted); border: 1px solid var(--border-soft); padding: 12px; border-radius: 12px;"><%= stack %></pre>
+  <% } %>
+  <div class="mt-4">
+    <a href="/" class="glass-button inline-flex items-center gap-2 px-4 py-2 font-medium">Kembali ke Beranda</a>
+  </div>
+  </div>
+<% } %>
+<%- include('wrapper', { title: `Error ${status}`, content }) %>
+
