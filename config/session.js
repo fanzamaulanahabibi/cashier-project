@@ -9,16 +9,17 @@ dotenv.config({ path: path.join(__dirname, '..', '.env') });
 export function createSessionMiddleware(app) {
   const isProduction = process.env.NODE_ENV === 'production';
   const sessionSecret = process.env.SESSION_SECRET;
-  if (isProduction && !sessionSecret) {
+  const secret = (sessionSecret || '').trim();
+  if (isProduction && !secret) {
     throw new Error('SESSION_SECRET environment variable must be set in production.');
   }
-  if (!sessionSecret) {
+  if (!secret) {
     console.warn('SESSION_SECRET is not set. Using an insecure default secret for development.');
   }
   if (isProduction) app.set('trust proxy', 1);
 
   return ironSession({
-    password: sessionSecret || 'dev-session-secret',
+    password: secret || 'dev-session-secret',
     cookieName: 'pos_sess',
     cookieOptions: {
       httpOnly: true,

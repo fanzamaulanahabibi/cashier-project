@@ -26,6 +26,16 @@ app.get('/favicon.ico', (req, res) => res.status(204).end());
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
+// Simple health endpoint for uptime checks (placed before session middleware)
+app.get('/health', (req, res) => {
+  res.json({
+    ok: true,
+    service: 'coffee-pos',
+    time: new Date().toISOString(),
+    env: process.env.NODE_ENV || 'development',
+  });
+});
+
 app.use(createSessionMiddleware(app));
 
 // Expose helpers to templates
@@ -47,16 +57,6 @@ app.use(posRoutes);
 app.use(productRoutes);
 app.use(orderRoutes);
 app.use(reportRoutes);
-
-// Simple health endpoint for uptime checks
-app.get('/health', (req, res) => {
-  res.json({
-    ok: true,
-    service: 'coffee-pos',
-    time: new Date().toISOString(),
-    env: process.env.NODE_ENV || 'development',
-  });
-});
 
 // 404 and error handler
 app.use(notFound);
