@@ -49,6 +49,10 @@ app.use((req, res, next) => {
   next();
 });
 
+// Minimal fallback routes so first request doesn't 404 while routes are being mounted
+app.get('/', (req, res) => res.redirect('/login'));
+app.get('/login', (req, res) => res.render('login', { error: null }));
+
 // Debug endpoints (remove after diagnosis)
 // Move debug endpoints before session to isolate middleware issues
 app.get('/debug-session', (req, res) => {
