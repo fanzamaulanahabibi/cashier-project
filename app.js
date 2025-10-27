@@ -4,6 +4,8 @@ import url from 'url';
 import dotenv from 'dotenv';
 import dayjs from 'dayjs';
 import { createSessionMiddleware } from './config/session.js';
+import { db } from './drizzle/client.js';
+import { sql } from 'drizzle-orm';
 import { SHOP, STANDARD_CATEGORIES } from './config/shop.js';
 
 import authRoutes from './routes/authRoutes.js';
@@ -46,6 +48,27 @@ app.use((req, res, next) => {
   res.locals.SHOP = SHOP;
   res.locals.STANDARD_CATEGORIES = STANDARD_CATEGORIES;
   next();
+});
+
+// Debug endpoints (remove after diagnosis)
+app.get('/debug-session', (req, res) => {
+  res.json({
+    ok: true,
+    hasSession: !!req.session,
+    keys: Object.keys(req.session || {}),
+    user: req.session?.user || null,
+  });
+});
+
+app.get('/debug-db', async (req, res) => {
+  const start = Date.now();
+  try {
+    const ping = await db.execute(sql`select 1 as ok`);
+    const took = Date.now() - start;
+    res.json({ ok: true, ping: ping?.rows?.[0]?.ok === 1, tookMs: took });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e) });
+  }
 });
 
 // Root redirect
