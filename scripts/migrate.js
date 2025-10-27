@@ -1,4 +1,12 @@
-import { pool } from '../drizzle/client.js';
+import dotenv from 'dotenv';
+import path from 'path';
+import url from 'url';
+import pkg from 'pg';
+
+const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
+dotenv.config({ path: path.join(__dirname, '..', '.env') });
+const { Pool } = pkg;
+const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
 
 const ddl = `
 DO $$

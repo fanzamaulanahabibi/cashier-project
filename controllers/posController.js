@@ -1,4 +1,4 @@
-import { db } from '../drizzle/client.js';
+import { db, runInTransaction } from '../drizzle/client.js';
 import { sql, eq } from 'drizzle-orm';
 import { schema } from '../drizzle/client.js';
 import { STANDARD_CATEGORIES } from '../config/shop.js';
@@ -20,7 +20,7 @@ export async function checkout(req, res) {
     return res.status(400).json({ error: 'Tidak ada item' });
   }
 
-  const result = await db.transaction(async (tx) => {
+  const result = await runInTransaction(async (tx) => {
     let total = 0;
     const itemRows = [];
 
