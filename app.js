@@ -4,8 +4,6 @@ import url from 'url';
 import dotenv from 'dotenv';
 import dayjs from 'dayjs';
 import { createSessionMiddleware } from './config/session.js';
-import { db } from './drizzle/client.js';
-import { sql } from 'drizzle-orm';
 import { SHOP, STANDARD_CATEGORIES } from './config/shop.js';
 
 import authRoutes from './routes/authRoutes.js';
@@ -38,6 +36,11 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Ultra-early ping to ensure Express handler responds even before any heavy imports
+app.get('/__ping', (_req, res) => {
+  res.type('text').send('ok');
+});
+
 app.use(createSessionMiddleware(app));
 
 // Expose helpers to templates
@@ -51,6 +54,7 @@ app.use((req, res, next) => {
 });
 
 // Debug endpoints (remove after diagnosis)
+// Move debug endpoints before session to isolate middleware issues
 app.get('/debug-session', (req, res) => {
   res.json({
     ok: true,
@@ -63,6 +67,8 @@ app.get('/debug-session', (req, res) => {
 app.get('/debug-db', async (req, res) => {
   const start = Date.now();
   try {
+    const { db } = await import('./drizzle/client.js');
+    const { sql } = await import('drizzle-orm');
     const ping = await db.execute(sql`select 1 as ok`);
     const took = Date.now() - start;
     res.json({ ok: true, ping: ping?.rows?.[0]?.ok === 1, tookMs: took });
