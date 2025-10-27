@@ -1,19 +1,18 @@
-// Postinstall check to confirm critical dependencies exist in the Vercel build logs
-// Safe to remove after verification
+// Postinstall check to confirm critical dependencies can be resolved
+// (Avoid importing package.json due to package "exports" and JSON assertion issues on some runtimes)
 const checks = [
-  { label: 'cookie-session', path: 'cookie-session/package.json' },
-  { label: 'drizzle-orm', path: 'drizzle-orm/package.json' },
-  { label: '@neondatabase/serverless', path: '@neondatabase/serverless/package.json' },
+  { label: 'cookie-session', path: 'cookie-session' },
+  { label: 'drizzle-orm', path: 'drizzle-orm' },
+  { label: '@neondatabase/serverless', path: '@neondatabase/serverless' },
 ];
 
 (async () => {
   for (const c of checks) {
     try {
-      const mod = await import(c.path, { assert: { type: 'json' } });
-      const version = (mod && (mod.version || mod.default?.version)) || 'unknown';
-      console.log(`[postinstall] ${c.label} version: ${version}`);
+      await import(c.path);
+      console.log(`[postinstall] ${c.label}: ok`);
     } catch (e) {
-      console.error(`[postinstall] ${c.label} missing: ${e.message}`);
+      console.error(`[postinstall] ${c.label}: missing -> ${e.message}`);
     }
   }
 })();
