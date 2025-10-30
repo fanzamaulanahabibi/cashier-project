@@ -1,11 +1,3 @@
 {
-  "version": 2,
-  "functions": {
-    "api/**/*.js": {
-      "includeFiles": "{node_modules/cookie-session/**,node_modules/drizzle-orm/**,node_modules/@neondatabase/serverless/**}"
-    }
-  },
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/api/index" }
-  ]
+  "version": 2
 }

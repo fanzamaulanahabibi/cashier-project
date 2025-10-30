@@ -1,39 +1,42 @@
 {
-  "name": "coffee-pos",
-  "version": "0.1.0",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "start": "node server.js",
-    "seed": "node seed.js",
-    "reset-password": "node scripts/reset-password.js",
-    "create-user": "node scripts/create-user.js",
-    "postinstall": "node scripts/postinstall-check.js",
-    "lint": "eslint . --ext .js",
-    "lint:fix": "eslint . --ext .js --fix",
-    "db:generate": "drizzle-kit generate:pg",
-    "db:push": "drizzle-kit push",
-    "db:migrate": "node scripts/migrate.js"
-
-  },
-  "dependencies": {
-    "bcryptjs": "^2.4.3",
-    "@neondatabase/serverless": "^0.9.3",
-    "dayjs": "^1.11.13",
-    "dotenv": "^16.4.5",
-    "drizzle-orm": "^0.33.0",
-    "ejs": "^3.1.10",
-    "express": "^4.19.2",
-    "express-session": "^1.18.0",
-    "cookie-session": "^2.0.0",
-    "pg": "^8.12.0",
-    "serverless-http": "^3.2.0"
-  },
-  "devDependencies": {
-    "drizzle-kit": "0.30.0",
-    "eslint": "^8.57.0" 
-  },
-  "engines": {
-    "node": "22.x"
-  }
+    "name": "coffee-pos",
+    "version": "0.1.0",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "dev": "next dev",
+        "build": "next build",
+        "start": "next start",
+        "reset-password": "node scripts/reset-password.js",
+        "create-user": "node scripts/create-user.js",
+        "postinstall": "node scripts/postinstall-check.js",
+        "lint": "eslint . --ext .js",
+        "lint:fix": "eslint . --ext .js --fix",
+        "db:generate": "drizzle-kit generate:pg",
+        "db:push": "drizzle-kit push",
+        "db:migrate": "node scripts/migrate.js"
+    },
+    "dependencies": {
+        "@neondatabase/serverless": "^0.9.5",
+        "bcryptjs": "^2.4.3",
+        "dotenv": "^16.4.5",
+        "drizzle-orm": "^0.33.0",
+        "jose": "^5.2.0",
+        "next": "^14.2.5",
+        "pg": "^8.16.3",
+        "react": "^18.3.1",
+        "react-dom": "^18.3.1",
+        "ws": "^8.18.3"
+    },
+    "devDependencies": {
+        "autoprefixer": "^10.4.21",
+        "drizzle-kit": "0.30.0",
+        "eslint": "^8.57.0",
+        "eslint-config-next": "^14.2.5",
+        "postcss": "^8.5.6",
+        "tailwindcss": "^3.4.12"
+    },
+    "engines": {
+        "node": ">=18.17 <=20.x"
+    }
 }

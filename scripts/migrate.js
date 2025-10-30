@@ -1,29 +1,46 @@
 import dotenv from 'dotenv';
 import path from 'path';
 import url from 'url';
-import pkg from 'pg';
+import { Client } from '@neondatabase/serverless';
+import ws from 'ws';
 
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
-const { Pool } = pkg;
-const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+  console.error('DATABASE_URL is not set in your environment.');
+  process.exit(1);
+}
 
-const ddl = `
-DO $$
+const WebSocketImpl = globalThis.WebSocket || ws;
+if (!globalThis.WebSocket) {
+  globalThis.WebSocket = WebSocketImpl;
+}
+
+const client = new Client({
+  connectionString,
+  fetchEndpoint: process.env.NEON_FETCH_ENDPOINT,
+  webSocketConstructor: WebSocketImpl,
+});
+
+async function migrate() {
+  try {
+    await client.connect();
+
+    const statements = [
+      `DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
     CREATE TYPE user_role AS ENUM ('admin','cashier');
   END IF;
-END $$;
-
-CREATE TABLE IF NOT EXISTS users (
+END $$;`,
+      `CREATE TABLE IF NOT EXISTS users (
   id SERIAL PRIMARY KEY,
   username TEXT UNIQUE NOT NULL,
   password_hash TEXT NOT NULL,
   role user_role NOT NULL DEFAULT 'cashier'
-);
-
-CREATE TABLE IF NOT EXISTS products (
+);`,
+      `CREATE TABLE IF NOT EXISTS products (
   id SERIAL PRIMARY KEY,
   name TEXT NOT NULL,
   sku TEXT UNIQUE,
@@ -31,9 +48,8 @@ CREATE TABLE IF NOT EXISTS products (
   category TEXT,
   stock INTEGER NOT NULL DEFAULT 0,
   is_active BOOLEAN NOT NULL DEFAULT TRUE
-);
-
-CREATE TABLE IF NOT EXISTS orders (
+);`,
+      `CREATE TABLE IF NOT EXISTS orders (
   id SERIAL PRIMARY KEY,
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
   cashier TEXT,
@@ -41,9 +57,8 @@ CREATE TABLE IF NOT EXISTS orders (
   payment_method TEXT NOT NULL DEFAULT 'cash',
   cash_received INTEGER,
   change_amount INTEGER
-);
-
-CREATE TABLE IF NOT EXISTS order_items (
+);`,
+      `CREATE TABLE IF NOT EXISTS order_items (
   id SERIAL PRIMARY KEY,
   order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
   product_id INTEGER REFERENCES products(id) ON DELETE SET NULL,
@@ -52,37 +67,31 @@ CREATE TABLE IF NOT EXISTS order_items (
   qty INTEGER NOT NULL,
   price_each INTEGER NOT NULL,
   line_total INTEGER NOT NULL
-);
-`;
+);`,
+      `DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_name = 'users' AND column_name = 'role' AND udt_name = 'text'
+  ) THEN
+    ALTER TABLE users ALTER COLUMN role DROP DEFAULT;
+    ALTER TABLE users ALTER COLUMN role TYPE user_role USING role::user_role;
+    ALTER TABLE users ALTER COLUMN role SET DEFAULT 'cashier';
+  END IF;
+END $$;`,
+    ];
 
-async function migrate() {
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    await client.query(ddl);
-    // Try to migrate existing users.role column to enum if it's still TEXT
-    await client.query(`
-      DO $$
-      BEGIN
-        IF EXISTS (
-          SELECT 1
-          FROM information_schema.columns
-          WHERE table_name = 'users' AND column_name = 'role' AND udt_name = 'text'
-        ) THEN
-          ALTER TABLE users ALTER COLUMN role DROP DEFAULT;
-          ALTER TABLE users ALTER COLUMN role TYPE user_role USING role::user_role;
-          ALTER TABLE users ALTER COLUMN role SET DEFAULT 'cashier';
-        END IF;
-      END $$;
-    `);
-    await client.query('COMMIT');
+    for (const stmt of statements) {
+      await client.query(stmt);
+    }
+
     console.log('Database schema ensured.');
-  } catch (e) {
-    await client.query('ROLLBACK');
-    console.error('Migration failed:', e);
+  } catch (error) {
+    console.error('Migration failed:', error);
     process.exit(1);
   } finally {
-    client.release();
+    await client.end();
   }
 }
 

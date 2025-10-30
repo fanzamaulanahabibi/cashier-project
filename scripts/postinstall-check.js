@@ -1,7 +1,7 @@
 // Postinstall check to confirm critical dependencies can be resolved
 // (Avoid importing package.json due to package "exports" and JSON assertion issues on some runtimes)
 const checks = [
-  { label: 'cookie-session', path: 'cookie-session' },
+  // cookie-session removed in Next.js migration
   { label: 'drizzle-orm', path: 'drizzle-orm' },
   { label: '@neondatabase/serverless', path: '@neondatabase/serverless' },
 ];

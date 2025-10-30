@@ -1,5 +1,6 @@
-import { drizzle } from 'drizzle-orm/neon-http';
-import { neon } from '@neondatabase/serverless';
+import { drizzle } from 'drizzle-orm/neon-serverless';
+import { Client } from '@neondatabase/serverless';
+import ws from 'ws';
 import dotenv from 'dotenv';
 import path from 'path';
 import url from 'url';
@@ -13,14 +14,13 @@ if (!connectionString) {
   console.warn('DATABASE_URL is not set; Drizzle client will fail to connect.');
 }
 
-const sql = neon(connectionString);
-export const db = drizzle(sql, { schema });
-export { schema } from './schema.js';
-
-export async function runInTransaction(work) {
-  if (typeof db.transaction === 'function') {
-    return await db.transaction(work);
-  }
-  // Fallback: run without explicit transaction (neon-http may not support tx on older versions)
-  return await work(db);
+const WebSocketImpl = globalThis.WebSocket || ws;
+if (!globalThis.WebSocket) {
+  globalThis.WebSocket = WebSocketImpl;
 }
+
+const client = new Client({ connectionString, fetchEndpoint: process.env.NEON_FETCH_ENDPOINT, webSocketConstructor: WebSocketImpl });
+await client.connect();
+
+export const db = drizzle(client, { schema });
+export { schema } from './schema.js';
