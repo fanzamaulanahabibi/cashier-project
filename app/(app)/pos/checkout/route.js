@@ -31,7 +31,8 @@ export async function POST(req) {
       }
 
       let cashRecv = null, change = null;
-      let payMethod = payment_method || 'cash';
+      const allowedMethods = new Set(['cash', 'qris']);
+      let payMethod = allowedMethods.has(payment_method) ? payment_method : 'cash';
       if (payMethod === 'cash') {
         cashRecv = parseInt(cash_received || 0, 10);
         if (isNaN(cashRecv) || cashRecv < total) throw new Error('Uang cash kurang');

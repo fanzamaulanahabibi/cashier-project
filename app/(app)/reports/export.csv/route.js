@@ -12,12 +12,16 @@ export async function GET(req) {
     return new NextResponse('Forbidden', { status: 403 });
   }
   const { searchParams } = new URL(req.url);
-  const from = searchParams.get('from') ? `${searchParams.get('from')} 00:00:00` : null;
-  const to = searchParams.get('to') ? `${searchParams.get('to')} 23:59:59` : null;
+  const fromParam = searchParams.get('from');
+  const toParam = searchParams.get('to');
+  const from = fromParam ? `${fromParam} 00:00:00` : null;
+  const to = toParam ? `${toParam} 23:59:59` : null;
   const rawPayment = searchParams.get('payment');
   const paymentCandidate = typeof rawPayment === 'string' ? rawPayment.toLowerCase().trim() : null;
-  const allowedPayments = ['cash', 'qris', 'card'];
+  const allowedPayments = ['cash', 'qris'];
   const paymentFilter = allowedPayments.includes(paymentCandidate) ? paymentCandidate : null;
+  const cashierParam = searchParams.get('cashier');
+  const cashierFilter = cashierParam && cashierParam.trim() !== '' ? cashierParam.trim() : null;
   const rows = (await db.execute(sql`
     SELECT o.id, o.created_at, o.cashier, o.total, o.payment_method, o.cash_received, o.change_amount,
            COALESCE(string_agg(COALESCE(oi.product_name, 'Produk Terhapus') || ' x' || oi.qty, ', '), '') AS products
@@ -25,6 +29,7 @@ export async function GET(req) {
     LEFT JOIN order_items oi ON oi.order_id = o.id
     WHERE ${from ? sql`o.created_at >= ${from}` : sql`TRUE`} AND ${to ? sql`o.created_at <= ${to}` : sql`TRUE`}
       AND ${paymentFilter ? sql`o.payment_method = ${paymentFilter}` : sql`TRUE`}
+      AND ${cashierFilter ? sql`LOWER(o.cashier) = LOWER(${cashierFilter})` : sql`TRUE`}
     GROUP BY o.id
     ORDER BY o.id
   `)).rows;

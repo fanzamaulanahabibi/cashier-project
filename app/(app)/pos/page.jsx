@@ -111,20 +111,16 @@ export default async function PosPage() {
         </div>
         <div>
           <p class="text-xs uppercase tracking-wider text-subtle font-semibold mb-2">Metode Pembayaran</p>
-          <div class="pos-payment-options">
-            <label class="chip-option" :class="payment_method === 'cash' ? 'active' : ''">
-              <input type="radio" value="cash" x-model="payment_method" class="sr-only" />
-              <span>Cash</span>
-            </label>
-            <label class="chip-option" :class="payment_method === 'qris' ? 'active' : ''">
-              <input type="radio" value="qris" x-model="payment_method" class="sr-only" />
-              <span>QRIS</span>
-            </label>
-            <label class="chip-option" :class="payment_method === 'card' ? 'active' : ''">
-              <input type="radio" value="card" x-model="payment_method" class="sr-only" />
-              <span>Kartu</span>
-            </label>
-          </div>
+            <div class="pos-payment-options">
+              <label class="chip-option" :class="payment_method === 'cash' ? 'active' : ''">
+                <input type="radio" value="cash" x-model="payment_method" class="sr-only" />
+                <span>Cash</span>
+              </label>
+              <label class="chip-option" :class="payment_method === 'qris' ? 'active' : ''">
+                <input type="radio" value="qris" x-model="payment_method" class="sr-only" />
+                <span>QRIS</span>
+              </label>
+            </div>
         </div>
         <template x-if="payment_method === 'cash'">
           <div class="space-y-2">

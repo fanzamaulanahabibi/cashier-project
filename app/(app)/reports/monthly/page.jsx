@@ -19,8 +19,16 @@ export default async function MonthlyReport({ searchParams }) {
   const ym = searchParams?.month || new Date().toISOString().slice(0,7);
   const rawPayment = searchParams?.payment ?? 'all';
   const paymentCandidate = typeof rawPayment === 'string' ? rawPayment.toLowerCase().trim() : 'all';
-  const allowedPayments = ['all', 'cash', 'qris', 'card'];
+  const allowedPayments = ['all', 'cash', 'qris'];
   const paymentFilter = allowedPayments.includes(paymentCandidate) ? paymentCandidate : 'all';
+  const cashierInput = (searchParams?.cashier || '').toString().trim();
+  const cashierRows = await db.execute(sql`
+    SELECT DISTINCT cashier
+    FROM orders
+    WHERE cashier IS NOT NULL AND TRIM(cashier) <> ''
+    ORDER BY cashier
+  `);
+  const cashierOptions = cashierRows.rows.map((row) => row.cashier).filter((name) => name && name.trim() !== '');
   const start = `${ym}-01 00:00:00`;
   const end = `${ym}-31 23:59:59`;
   const rows = (await db.execute(sql`
@@ -29,11 +37,13 @@ export default async function MonthlyReport({ searchParams }) {
     LEFT JOIN order_items oi ON oi.order_id = o.id
     WHERE o.created_at >= ${start} AND o.created_at <= ${end}
       AND ${paymentFilter === 'all' ? sql`TRUE` : sql`o.payment_method = ${paymentFilter}`}
+      AND ${cashierInput ? sql`LOWER(o.cashier) = LOWER(${cashierInput})` : sql`TRUE`}
     GROUP BY o.id
     ORDER BY o.created_at ASC
   `)).rows;
   const total = rows.reduce((a,b)=>a+b.total,0);
   const formatter = new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',maximumFractionDigits:0});
+  const cashierLabel = cashierInput || 'Semua kasir';
 
   return (
     <div className="page-stack animate-fade-in">
@@ -54,7 +64,17 @@ export default async function MonthlyReport({ searchParams }) {
             <option value="all">Semua Metode</option>
             <option value="cash">Tunai</option>
             <option value="qris">QRIS</option>
-            <option value="card">Kartu</option>
+          </select>
+        </div>
+        <div>
+          <label className="block">Kasir</label>
+          <select name="cashier" defaultValue={cashierInput} className="glass-input w-full px-3 py-2">
+            <option value="">Semua Kasir</option>
+            {cashierOptions.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
           </select>
         </div>
         <div className="section-actions">
@@ -75,6 +95,7 @@ export default async function MonthlyReport({ searchParams }) {
           <span>Total Penjualan</span>
           <strong className="text-accent">{formatter.format(total)}</strong>
           <p className="text-xs text-muted">Rata-rata {formatter.format(rows.length ? Math.round(total / rows.length) : 0)} per transaksi</p>
+          <p className="text-xs text-muted mt-1">Kasir: {cashierLabel}</p>
         </div>
       </div>
 

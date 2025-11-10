@@ -35,6 +35,7 @@ export default async function AppShell({ children }) {
                 {isAdmin && <a href="/reports/daily" className="nav-link">Laporan</a>}
                 {isAdmin && <a href="/products" className="nav-link">Produk</a>}
                 {isAdmin && <a href="/users" className="nav-link">Pengguna</a>}
+                <a href="/account/password" className="nav-link">Ganti Password</a>
                 <span className="text-base text-muted">
                   Hi, <span className="font-semibold text-strong">{currentUser.username}</span>
                 </span>

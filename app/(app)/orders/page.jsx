@@ -11,13 +11,22 @@ export default async function OrdersPage({ searchParams }) {
   const fromInput = (searchParams?.from ?? todayStr).trim() || todayStr;
   const toInput = (searchParams?.to ?? todayStr).trim() || todayStr;
   const paymentRaw = (searchParams?.payment || 'all').toString().toLowerCase().trim();
-  const allowedPayments = ['all', 'cash', 'qris', 'card'];
+  const allowedPayments = ['all', 'cash', 'qris'];
   const paymentFilter = allowedPayments.includes(paymentRaw) ? paymentRaw : 'all';
+  const cashierInput = (searchParams?.cashier || '').toString().trim();
+  const cashierRows = await db.execute(sql`
+    SELECT DISTINCT cashier
+    FROM orders
+    WHERE cashier IS NOT NULL AND TRIM(cashier) <> ''
+    ORDER BY cashier
+  `);
+  const cashierOptions = cashierRows.rows.map((row) => row.cashier).filter((name) => name && name.trim() !== '');
 
   const conditions = [];
   if (fromInput) conditions.push(sql`o.created_at >= ${fromInput + ' 00:00:00'}`);
   if (toInput) conditions.push(sql`o.created_at <= ${toInput + ' 23:59:59'}`);
   if (paymentFilter !== 'all') conditions.push(sql`o.payment_method = ${paymentFilter}`);
+  if (cashierInput) conditions.push(sql`LOWER(o.cashier) = LOWER(${cashierInput})`);
 
   const whereSql = sql`WHERE ${sql.join(conditions, sql` AND `)}`;
   const isFiltered = true;
@@ -36,6 +45,7 @@ export default async function OrdersPage({ searchParams }) {
   const totalSales = orders.reduce((s, o) => s + o.total, 0);
   const formatIDR = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 });
   const paymentLabel = paymentFilter === 'all' ? 'Semua metode' : paymentFilter.toUpperCase();
+  const cashierLabel = cashierInput || 'Semua kasir';
 
   return (
     <div className="page-stack animate-fade-in">
@@ -57,7 +67,7 @@ export default async function OrdersPage({ searchParams }) {
         <div className="metric-card" style={{ background: 'rgba(244,213,178,0.3)' }}>
           <span>Periode filter</span>
           <strong>{fromInput || toInput ? `${fromInput || 'awal'} → ${toInput || 'akhir'}` : 'Menampilkan 100 terbaru'}</strong>
-          <p className="text-xs text-muted mt-1">Metode: {paymentLabel}</p>
+          <p className="text-xs text-muted mt-1">Metode: {paymentLabel} • Kasir: {cashierLabel}</p>
         </div>
       </div>
 
@@ -76,7 +86,17 @@ export default async function OrdersPage({ searchParams }) {
             <option value="all">Semua Metode</option>
             <option value="cash">Tunai</option>
             <option value="qris">QRIS</option>
-            <option value="card">Kartu</option>
+          </select>
+        </div>
+        <div className="filter-group">
+          <label className="filter-label" htmlFor="cashier">Kasir</label>
+          <select id="cashier" name="cashier" defaultValue={cashierInput} className="glass-input px-3 py-2">
+            <option value="">Semua Kasir</option>
+            {cashierOptions.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
           </select>
         </div>
         <div className="filter-actions">
