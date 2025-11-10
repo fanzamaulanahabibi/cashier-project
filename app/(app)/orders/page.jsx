@@ -7,8 +7,9 @@ export const dynamic = 'force-dynamic';
 export default async function OrdersPage({ searchParams }) {
   const { redirect } = await requireUserOrRedirect();
   if (redirect) return null;
-  const fromInput = (searchParams?.from || '').trim();
-  const toInput = (searchParams?.to || '').trim();
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const fromInput = (searchParams?.from ?? todayStr).trim() || todayStr;
+  const toInput = (searchParams?.to ?? todayStr).trim() || todayStr;
   const paymentRaw = (searchParams?.payment || 'all').toString().toLowerCase().trim();
   const allowedPayments = ['all', 'cash', 'qris', 'card'];
   const paymentFilter = allowedPayments.includes(paymentRaw) ? paymentRaw : 'all';
@@ -18,8 +19,8 @@ export default async function OrdersPage({ searchParams }) {
   if (toInput) conditions.push(sql`o.created_at <= ${toInput + ' 23:59:59'}`);
   if (paymentFilter !== 'all') conditions.push(sql`o.payment_method = ${paymentFilter}`);
 
-  const whereSql = conditions.length ? sql`WHERE ${sql.join(conditions, sql` AND `)}` : sql``;
-  const isFiltered = conditions.length > 0;
+  const whereSql = sql`WHERE ${sql.join(conditions, sql` AND `)}`;
+  const isFiltered = true;
 
   const query = sql`
     SELECT o.*, COALESCE(string_agg(COALESCE(oi.product_name, 'Produk Terhapus') || ' x' || oi.qty, ', '), '') AS product_summary

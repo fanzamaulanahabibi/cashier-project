@@ -45,7 +45,7 @@ export default async function DailyReport({ searchParams }) {
     <div className="page-stack animate-fade-in">
       <div className="section-heading">
         <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand/10 text-brand text-xs font-semibold uppercase tracking-wider w-max">Laporan Penjualan</span>
-        <h1 className="heading-xl">Laporan Harian</h1>
+        <h1 className="heading-xl">Laporan Penjualan</h1>
         <p className="text-lead">Pilih rentang tanggal untuk melihat performa penjualan warung Anda pada periode tertentu.</p>
       </div>
 

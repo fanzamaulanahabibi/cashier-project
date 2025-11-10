@@ -1,8 +1,8 @@
-// File: C:\coffee-pos\app\(app)\orders\page.jsx
-import * as entry from '../../../../../app/(app)/orders/page.js'
+// File: C:\coffee-pos\app\(app)\login\page.jsx
+import * as entry from '../../../../../app/(app)/login/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 
-type TEntry = typeof import('../../../../../app/(app)/orders/page.js')
+type TEntry = typeof import('../../../../../app/(app)/login/page.js')
 
 // Check that the entry is a valid entry
 checkFields<Diff<{

@@ -31,7 +31,7 @@ export default async function AppShell({ children }) {
             {currentUser ? (
               <>
                 <a href="/pos" className="nav-link">Kasir</a>
-                <a href="/orders" className="nav-link">Orders</a>
+                <a href="/orders" className="nav-link">Riwayat</a>
                 {isAdmin && <a href="/reports/daily" className="nav-link">Laporan</a>}
                 {isAdmin && <a href="/products" className="nav-link">Produk</a>}
                 {isAdmin && <a href="/users" className="nav-link">Pengguna</a>}
