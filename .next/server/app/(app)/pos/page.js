@@ -114,12 +114,15 @@
       <template x-if="scanner.open">
         <div class="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" @click.self="closeScanner">
           <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg p-5 space-y-4">
-            <div class="flex items-center justify-between">
+            <div class="flex items-center justify-between flex-wrap gap-3">
               <div>
                 <p class="text-xs uppercase tracking-wider text-subtle font-semibold">Mode Kamera</p>
                 <h3 class="text-lg font-semibold text-strong">Scan Barcode Produk</h3>
               </div>
-              <button type="button" class="glass-button px-3 py-1 text-sm" @click="closeScanner">Tutup</button>
+              <div class="flex items-center gap-2">
+                <button type="button" class="glass-button alt px-3 py-1 text-sm" @click="toggleCameraFacing" x-text="cameraToggleLabel"></button>
+                <button type="button" class="glass-button px-3 py-1 text-sm" @click="closeScanner">Tutup</button>
+              </div>
             </div>
             <div class="rounded-xl overflow-hidden bg-black relative">
               <video x-ref="scanVideo" class="w-full aspect-video" autoplay playsinline muted></video>
@@ -170,9 +173,11 @@
             scannerSupported: false,
             scannerReady: false,
             scanner: { open: false, detector: null, stream: null, raf: null, controls: null, zxing: null },
+            cameraFacing: 'environment',
             focusSize: 66,
             cameraStatus: '',
             zxingLoading: null,
+            audioCtx: null,
             init() {
               this.scannerSupported = typeof navigator !== 'undefined' && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
             },
@@ -239,6 +244,12 @@
               if (/berhasil/i.test(this.cameraStatus)) return 'text-emerald-600';
               return 'text-warning-600 text-amber-600';
             },
+            get cameraFacingLabel() {
+              return this.cameraFacing === 'environment' ? 'Kamera Belakang' : 'Kamera Depan';
+            },
+            get cameraToggleLabel() {
+              return this.cameraFacing === 'environment' ? 'Gunakan Kamera Depan' : 'Gunakan Kamera Belakang';
+            },
             findProductByCode(value) {
               const raw = String(value ?? '').trim();
               if (!raw) return null;
@@ -266,15 +277,38 @@
                 this.scanMessage = this.scanCode ? 'Kode tidak ditemukan.' : 'Isi kode terlebih dahulu.';
               }
             },
-            async openScanner() {
+            openScanner() {
               if (!this.scannerSupported) {
                 this.scanMessage = 'Perangkat tidak mendukung akses kamera.';
                 return;
               }
+              if (!this.scanner.open) {
+                this.scanner.open = true;
+              }
+              this.restartScanner();
+            },
+            toggleCameraFacing() {
+              this.cameraFacing = this.cameraFacing === 'environment' ? 'user' : 'environment';
+              if (this.scanner.open) {
+                this.restartScanner();
+              }
+            },
+            restartScanner() {
+              if (!this.scanner.open) return;
+              this.cleanupScannerStream();
               this.scannerReady = false;
-            this.scanMessage = 'Mengaktifkan kamera...';
-            this.cameraStatus = 'Mengaktifkan kamera...';
+              this.scanMessage = 'Mengaktifkan kamera...';
+              this.cameraStatus = 'Mengaktifkan kamera...';
+              this.$nextTick(() => {
+                this.startScannerSession();
+              });
+            },
+            async startScannerSession() {
+              if (!this.scanner.open) return;
+              const video = this.$refs.scanVideo;
+              if (!video) return;
               const hasNativeDetector = typeof window !== 'undefined' && 'BarcodeDetector' in window;
+              const facingLabel = this.cameraFacingLabel;
               if (hasNativeDetector) {
                 if (!this.scanner.detector) {
                   try {
@@ -285,19 +319,14 @@
                   }
                 }
                 try {
-                  const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                  const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: this.cameraFacing } });
                   this.scanner.stream = stream;
-                  this.scanner.open = true;
-                  this.$nextTick(() => {
-                    const video = this.$refs.scanVideo;
-                    if (!video) return;
-                    video.srcObject = stream;
-                    video.play().catch(() => {});
-                    this.scanMessage = 'Kamera aktif, memindai kode...';
-                    this.cameraStatus = 'Kamera aktif, arahkan ke barcode.';
-                    this.markScannerReady(video);
-                    this.scanLoop();
-                  });
+                  video.srcObject = stream;
+                  video.play().catch(() => {});
+                  this.scanMessage = facingLabel + ' aktif, memindai kode...';
+                  this.cameraStatus = facingLabel + ' siap, arahkan ke barcode.';
+                  this.markScannerReady(video);
+                  this.scanLoop();
                 } catch (error) {
                   const msg = error.name === 'NotAllowedError' ? 'Izin kamera ditolak.' : 'Kamera gagal diaktifkan.';
                   this.scanMessage = msg;
@@ -311,42 +340,38 @@
                   this.cameraStatus = this.scanMessage;
                   return;
                 }
-                this.scanner.open = true;
-                this.$nextTick(() => {
-                  const video = this.$refs.scanVideo;
-                  if (!video) return;
-                  if (!this.scanner.zxing && window.ZXing?.BrowserMultiFormatReader) {
-                    this.scanner.zxing = new window.ZXing.BrowserMultiFormatReader();
-                  }
-                  if (!this.scanner.zxing) {
-                    this.scanMessage = 'Pemindai ZXing tidak tersedia.';
-                    return;
-                  }
-                  this.markScannerReady(video);
-                  this.scanMessage = 'Kamera aktif, memindai kode...';
-                  this.cameraStatus = 'Kamera aktif, arahkan ke barcode.';
-                  this.scanner.zxing.decodeFromVideoDevice(null, video, (result, err, controls) => {
-                    if (!this.scanner.open) return;
-                    if (controls && !this.scanner.controls) this.scanner.controls = controls;
-                    if (result) {
-                      const value = typeof result.getText === 'function' ? result.getText() : result.text || '';
-                      if (value) this.handleDetectedCode(value);
-                    } else if (err && err.name === 'NotAllowedError') {
-                      this.scanMessage = 'Izin kamera ditolak.';
-                      this.cameraStatus = this.scanMessage;
-                      this.closeScanner();
-                    }
-                  }).then((controls) => {
-                    this.scanner.controls = controls;
-                  }).catch(() => {
-                    this.scanMessage = 'Gagal mengaktifkan kamera.';
+                if (!this.scanner.zxing && window.ZXing?.BrowserMultiFormatReader) {
+                  this.scanner.zxing = new window.ZXing.BrowserMultiFormatReader();
+                }
+                if (!this.scanner.zxing) {
+                  this.scanMessage = 'Pemindai ZXing tidak tersedia.';
+                  return;
+                }
+                this.markScannerReady(video);
+                this.scanMessage = facingLabel + ' aktif, memindai kode...';
+                this.cameraStatus = facingLabel + ' siap, arahkan ke barcode.';
+                const constraints = { audio: false, video: { facingMode: this.cameraFacing } };
+                this.scanner.zxing.decodeFromConstraints(constraints, video, (result, err, controls) => {
+                  if (!this.scanner.open) return;
+                  if (controls && !this.scanner.controls) this.scanner.controls = controls;
+                  if (result) {
+                    const value = typeof result.getText === 'function' ? result.getText() : result.text || '';
+                    if (value) this.handleDetectedCode(value);
+                  } else if (err && err.name === 'NotAllowedError') {
+                    this.scanMessage = 'Izin kamera ditolak.';
                     this.cameraStatus = this.scanMessage;
                     this.closeScanner();
-                  });
+                  }
+                }).then((controls) => {
+                  this.scanner.controls = controls;
+                }).catch(() => {
+                  this.scanMessage = 'Gagal mengaktifkan kamera.';
+                  this.cameraStatus = this.scanMessage;
+                  this.closeScanner();
                 });
               }
             },
-            closeScanner() {
+            cleanupScannerStream() {
               if (this.scanner.raf) {
                 cancelAnimationFrame(this.scanner.raf);
                 this.scanner.raf = null;
@@ -362,6 +387,14 @@
               if (this.scanner.zxing) {
                 this.scanner.zxing.reset();
               }
+              const video = this.$refs && this.$refs.scanVideo ? this.$refs.scanVideo : null;
+              if (video) {
+                if (typeof video.pause === 'function') video.pause();
+                video.srcObject = null;
+              }
+            },
+            closeScanner() {
+              this.cleanupScannerStream();
               this.scanner.open = false;
               this.scannerReady = false;
               this.cameraStatus = '';
@@ -395,10 +428,12 @@
               if (!video) return;
               if (video.readyState >= 2) {
                 this.scannerReady = true;
+                if (video.srcObject) this.scanner.stream = video.srcObject;
                 return;
               }
               const handler = () => {
                 this.scannerReady = true;
+                if (video.srcObject) this.scanner.stream = video.srcObject;
                 video.removeEventListener('loadeddata', handler);
                 video.removeEventListener('canplay', handler);
               };
@@ -424,8 +459,32 @@
             handleDetectedCode(value) {
               this.scanCode = value;
               this.scanMessage = 'Kode terdeteksi: ' + value;
+              this.playScanSound();
               this.addByCode();
               this.closeScanner();
+            },
+            playScanSound() {
+              try {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                if (!AudioCtx) return;
+                if (!this.audioCtx) {
+                  this.audioCtx = new AudioCtx();
+                }
+                const ctx = this.audioCtx;
+                if (ctx.state === 'suspended' && typeof ctx.resume === 'function') ctx.resume();
+                const oscillator = ctx.createOscillator();
+                const gain = ctx.createGain();
+                oscillator.type = 'sine';
+                oscillator.frequency.value = 880;
+                gain.gain.value = 0.15;
+                oscillator.connect(gain);
+                gain.connect(ctx.destination);
+                const now = ctx.currentTime;
+                oscillator.start(now);
+                oscillator.stop(now + 0.18);
+              } catch (error) {
+                console.warn('Gagal memutar suara scan', error);
+              }
             },
             async captureFrame() {
               const video = this.$refs.scanVideo;
@@ -442,7 +501,7 @@
               const ctx = canvas.getContext('2d');
               ctx.drawImage(video, 0, 0, width, height);
               this.scanMessage = 'Memindai dari foto...';
-               this.cameraStatus = 'Memindai dari foto...';
+              this.cameraStatus = 'Memindai dari foto...';
               if (this.scanner.detector) {
                 try {
                   const codes = await this.scanner.detector.detect(canvas);
@@ -516,4 +575,4 @@
             },
           };
         }
-      `}})]})}s()}catch(e){s(e)}})},7272:()=>{},27:(e,t,a)=>{"use strict";a.r(t),a.d(t,{default:()=>o});var s=a(9510),r=a(9720),n=a(8855),i=a(8035);async function o({children:e}){let t=await (0,n.xn)(),a=t?.role==="admin";return(0,s.jsxs)(s.Fragment,{children:[s.jsx(r.default,{id:"app-utils",strategy:"beforeInteractive",children:"window.formatIDR = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n || 0);"}),s.jsx(r.default,{src:"https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js",strategy:"afterInteractive"}),s.jsx("nav",{className:"navbar",children:(0,s.jsxs)("div",{className:"nav-inner max-w-6xl mx-auto",children:[(0,s.jsxs)("div",{className:"nav-brand flex items-center gap-3",children:[s.jsx("span",{className:"inline-flex h-10 w-10 items-center justify-center rounded-xl bg-brand/20 text-brand font-semibold shadow-soft",children:"KW"}),(0,s.jsxs)("div",{children:[s.jsx("p",{className:"text-xs uppercase tracking-wider text-subtle",children:"Warung Sembako"}),s.jsx("p",{className:"text-lg font-semibold text-strong",children:i.k.name})]})]}),s.jsx("input",{type:"checkbox",id:"nav-toggle",className:"nav-toggle","aria-controls":"main-menu","aria-label":"Toggle menu"}),(0,s.jsxs)("label",{htmlFor:"nav-toggle",className:"nav-toggle-btn","aria-hidden":"true",children:[s.jsx("span",{}),s.jsx("span",{}),s.jsx("span",{})]}),s.jsx("div",{className:"nav-links flex items-center gap-3 text-sm",id:"main-menu",children:t?(0,s.jsxs)(s.Fragment,{children:[s.jsx("a",{href:"/pos",className:"nav-link",children:"Kasir"}),s.jsx("a",{href:"/orders",className:"nav-link",children:"Riwayat"}),a&&s.jsx("a",{href:"/reports/daily",className:"nav-link",children:"Laporan"}),a&&s.jsx("a",{href:"/products",className:"nav-link",children:"Produk"}),a&&s.jsx("a",{href:"/users",className:"nav-link",children:"Pengguna"}),s.jsx("a",{href:"/account/password",className:"nav-link",children:"Ganti Password"}),(0,s.jsxs)("span",{className:"text-base text-muted",children:["Hi, ",s.jsx("span",{className:"font-semibold text-strong",children:t.username})]}),s.jsx("a",{href:"/logout",className:"glass-button px-4 py-2 text-sm",children:"Logout"})]}):s.jsx("a",{href:"/login",className:"glass-button px-4 py-2 text-sm",children:"Login"})})]})}),s.jsx("main",{className:"app-container",children:s.jsx("div",{className:"page-stack animate-fade-in",children:e})}),s.jsx("script",{src:"/js/pos.js",defer:!0})]})}},899:(e,t,a)=>{"use strict";a.r(t),a.d(t,{default:()=>o,metadata:()=>i});var s=a(9510),r=a(7211),n=a(8035);a(7272);let i={title:n.k.name+" POS"};function o({children:e}){return s.jsx("html",{lang:"id",children:s.jsx("body",{className:`${r.className} min-h-screen font-display`,children:e})})}},8035:(e,t,a)=>{"use strict";a.d(t,{i:()=>c,k:()=>o});var s=a(5315),r=a(7360),n=a(6636);let i=s.dirname(r.fileURLToPath("file:///C:/coffee-pos/config/shop.js"));n.config({path:s.join(i,"..",".env")});let o={name:process.env.SHOP_NAME||"Kasir Warung Agen Sembako",address:process.env.SHOP_ADDRESS||"Jl. Contoh No. 123, Kota",receipt_footer:process.env.RECEIPT_FOOTER||"Terima kasih sudah berbelanja!"},c=["Makanan","Minuman","Bumbu Dapur","Sabun","Kebutuhan Rumah Tangga"]},7905:(e,t,a)=>{"use strict";a.r(t),a.d(t,{orderItems:()=>h,orders:()=>p,products:()=>m,schema:()=>g,userRoleEnum:()=>l,users:()=>u});var s=a(5396),r=a(8324),n=a(5961),i=a(2140),o=a(4374),c=a(8748),d=a(1575);let l=(0,s.ys)("user_role",["admin","cashier"]),u=(0,r.af)("users",{id:(0,n.eP)("id").primaryKey(),username:(0,i.fL)("username").notNull().unique(),passwordHash:(0,i.fL)("password_hash").notNull(),role:l("role").notNull().default("cashier")}),m=(0,r.af)("products",{id:(0,n.eP)("id").primaryKey(),name:(0,i.fL)("name").notNull(),sku:(0,i.fL)("sku").unique(),price:(0,o._L)("price").notNull(),category:(0,i.fL)("category"),stock:(0,o._L)("stock").notNull().default(0),isActive:(0,c.O7)("is_active").notNull().default(!0)}),p=(0,r.af)("orders",{id:(0,n.eP)("id").primaryKey(),createdAt:(0,d.AB)("created_at",{withTimezone:!1}).defaultNow().notNull(),cashier:(0,i.fL)("cashier"),total:(0,o._L)("total").notNull(),paymentMethod:(0,i.fL)("payment_method").notNull().default("cash"),cashReceived:(0,o._L)("cash_received"),changeAmount:(0,o._L)("change_amount")}),h=(0,r.af)("order_items",{id:(0,n.eP)("id").primaryKey(),orderId:(0,o._L)("order_id").notNull().references(()=>p.id,{onDelete:"cascade"}),productId:(0,o._L)("product_id").references(()=>m.id,{onDelete:"set null"}),productName:(0,i.fL)("product_name").notNull(),productSku:(0,i.fL)("product_sku"),qty:(0,o._L)("qty").notNull(),priceEach:(0,o._L)("price_each").notNull(),lineTotal:(0,o._L)("line_total").notNull()}),g={users:u,products:m,orders:p,orderItems:h}},8855:(e,t,a)=>{"use strict";a.d(t,{O:()=>u,Ov:()=>d,ed:()=>c,xn:()=>l});var s=a(1615),r=a(6091),n=a(6176);let i="session";function o(){let e=process.env.SESSION_SECRET||"dev-session-secret";return new TextEncoder().encode(e)}async function c(e){let t=await new r.N({sub:String(e.id),username:e.username,role:e.role}).setProtectedHeader({alg:"HS256"}).setIssuedAt().setExpirationTime("8h").sign(o());(0,s.cookies)().set(i,t,{httpOnly:!0,secure:!0,sameSite:"lax",path:"/",maxAge:28800})}function d(){(0,s.cookies)().set(i,"",{httpOnly:!0,path:"/",maxAge:0})}async function l(){let e=s.cookies().get(i)?.value;if(!e)return null;try{let{payload:t}=await (0,n._)(e,o());return{id:t.sub,username:t.username,role:t.role}}catch(e){return null}}async function u(e="/login"){let t=await l();if(!t)try{let{redirect:t}=await a.e(585).then(a.bind(a,8585));t(e)}catch(t){return{redirect:e}}return{user:t}}},53:(e,t,a)=>{"use strict";a.a(e,async(e,s)=>{try{a.d(t,{db:()=>l,f:()=>o});var r=a(8683),n=a(2237),i=a(4893),o=a(7905);let e=process.env.DATABASE_URL;if(!e)throw Error("DATABASE_URL is not set");let c=globalThis.WebSocket||i.ZP;globalThis.WebSocket||(globalThis.WebSocket=c);let d=globalThis.__neonClient;d||(d=new n.KU({connectionString:e,fetchEndpoint:process.env.NEON_FETCH_ENDPOINT,webSocketConstructor:c}),await d.connect(),globalThis.__neonClient=d);let l=(0,r.t)(d,{schema:o});s()}catch(e){s(e)}},1)}};var t=require("../../../webpack-runtime.js");t.C(e);var a=e=>t(t.s=e),s=t.X(0,[276,840,153,891,169],()=>a(5483));module.exports=s})();
+      `}})]})}s()}catch(e){s(e)}})},7272:()=>{},27:(e,t,a)=>{"use strict";a.r(t),a.d(t,{default:()=>o});var s=a(9510),r=a(9720),n=a(8855),i=a(8035);async function o({children:e}){let t=await (0,n.xn)(),a=t?.role==="admin";return(0,s.jsxs)(s.Fragment,{children:[s.jsx(r.default,{id:"app-utils",strategy:"beforeInteractive",children:"window.formatIDR = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n || 0);"}),s.jsx(r.default,{src:"https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js",strategy:"afterInteractive"}),s.jsx("nav",{className:"navbar",children:(0,s.jsxs)("div",{className:"nav-inner max-w-6xl mx-auto",children:[(0,s.jsxs)("div",{className:"nav-brand flex items-center gap-3",children:[s.jsx("span",{className:"inline-flex h-10 w-10 items-center justify-center rounded-xl bg-brand/20 text-brand font-semibold shadow-soft",children:"KW"}),(0,s.jsxs)("div",{children:[s.jsx("p",{className:"text-xs uppercase tracking-wider text-subtle",children:"Warung Sembako"}),s.jsx("p",{className:"text-lg font-semibold text-strong",children:i.k.name})]})]}),s.jsx("input",{type:"checkbox",id:"nav-toggle",className:"nav-toggle","aria-controls":"main-menu","aria-label":"Toggle menu"}),(0,s.jsxs)("label",{htmlFor:"nav-toggle",className:"nav-toggle-btn","aria-hidden":"true",children:[s.jsx("span",{}),s.jsx("span",{}),s.jsx("span",{})]}),s.jsx("div",{className:"nav-links flex items-center gap-3 text-sm",id:"main-menu",children:t?(0,s.jsxs)(s.Fragment,{children:[s.jsx("a",{href:"/pos",className:"nav-link",children:"Kasir"}),s.jsx("a",{href:"/orders",className:"nav-link",children:"Riwayat"}),a&&s.jsx("a",{href:"/reports/daily",className:"nav-link",children:"Laporan"}),a&&s.jsx("a",{href:"/products",className:"nav-link",children:"Produk"}),a&&s.jsx("a",{href:"/users",className:"nav-link",children:"Pengguna"}),s.jsx("a",{href:"/account/password",className:"nav-link",children:"Ganti Password"}),(0,s.jsxs)("span",{className:"text-base text-muted",children:["Hi, ",s.jsx("span",{className:"font-semibold text-strong",children:t.username})]}),s.jsx("a",{href:"/logout",className:"glass-button px-4 py-2 text-sm",children:"Logout"})]}):s.jsx("a",{href:"/login",className:"glass-button px-4 py-2 text-sm",children:"Login"})})]})}),s.jsx("main",{className:"app-container",children:s.jsx("div",{className:"page-stack animate-fade-in",children:e})}),s.jsx("script",{src:"/js/pos.js",defer:!0})]})}},899:(e,t,a)=>{"use strict";a.r(t),a.d(t,{default:()=>o,metadata:()=>i});var s=a(9510),r=a(7211),n=a(8035);a(7272);let i={title:n.k.name+" POS"};function o({children:e}){return s.jsx("html",{lang:"id",children:s.jsx("body",{className:`${r.className} min-h-screen font-display`,children:e})})}},8035:(e,t,a)=>{"use strict";a.d(t,{i:()=>c,k:()=>o});var s=a(5315),r=a(7360),n=a(6636);let i=s.dirname(r.fileURLToPath("file:///C:/coffee-pos/config/shop.js"));n.config({path:s.join(i,"..",".env")});let o={name:process.env.SHOP_NAME||"Kasir Warung Agen Sembako",address:process.env.SHOP_ADDRESS||"Jl. Contoh No. 123, Kota",receipt_footer:process.env.RECEIPT_FOOTER||"Terima kasih sudah berbelanja!"},c=["Makanan","Minuman","Bumbu Dapur","Sabun","Kebutuhan Rumah Tangga","Tembakau","Sampo","Obat-obatan"]},7905:(e,t,a)=>{"use strict";a.r(t),a.d(t,{orderItems:()=>h,orders:()=>p,products:()=>m,schema:()=>g,userRoleEnum:()=>l,users:()=>u});var s=a(5396),r=a(8324),n=a(5961),i=a(2140),o=a(4374),c=a(8748),d=a(1575);let l=(0,s.ys)("user_role",["admin","cashier"]),u=(0,r.af)("users",{id:(0,n.eP)("id").primaryKey(),username:(0,i.fL)("username").notNull().unique(),passwordHash:(0,i.fL)("password_hash").notNull(),role:l("role").notNull().default("cashier")}),m=(0,r.af)("products",{id:(0,n.eP)("id").primaryKey(),name:(0,i.fL)("name").notNull(),sku:(0,i.fL)("sku").unique(),price:(0,o._L)("price").notNull(),category:(0,i.fL)("category"),stock:(0,o._L)("stock").notNull().default(0),isActive:(0,c.O7)("is_active").notNull().default(!0)}),p=(0,r.af)("orders",{id:(0,n.eP)("id").primaryKey(),createdAt:(0,d.AB)("created_at",{withTimezone:!1}).defaultNow().notNull(),cashier:(0,i.fL)("cashier"),total:(0,o._L)("total").notNull(),paymentMethod:(0,i.fL)("payment_method").notNull().default("cash"),cashReceived:(0,o._L)("cash_received"),changeAmount:(0,o._L)("change_amount")}),h=(0,r.af)("order_items",{id:(0,n.eP)("id").primaryKey(),orderId:(0,o._L)("order_id").notNull().references(()=>p.id,{onDelete:"cascade"}),productId:(0,o._L)("product_id").references(()=>m.id,{onDelete:"set null"}),productName:(0,i.fL)("product_name").notNull(),productSku:(0,i.fL)("product_sku"),qty:(0,o._L)("qty").notNull(),priceEach:(0,o._L)("price_each").notNull(),lineTotal:(0,o._L)("line_total").notNull()}),g={users:u,products:m,orders:p,orderItems:h}},8855:(e,t,a)=>{"use strict";a.d(t,{O:()=>u,Ov:()=>d,ed:()=>c,xn:()=>l});var s=a(1615),r=a(6091),n=a(6176);let i="session";function o(){let e=process.env.SESSION_SECRET||"dev-session-secret";return new TextEncoder().encode(e)}async function c(e){let t=await new r.N({sub:String(e.id),username:e.username,role:e.role}).setProtectedHeader({alg:"HS256"}).setIssuedAt().setExpirationTime("8h").sign(o());(0,s.cookies)().set(i,t,{httpOnly:!0,secure:!0,sameSite:"lax",path:"/",maxAge:28800})}function d(){(0,s.cookies)().set(i,"",{httpOnly:!0,path:"/",maxAge:0})}async function l(){let e=s.cookies().get(i)?.value;if(!e)return null;try{let{payload:t}=await (0,n._)(e,o());return{id:t.sub,username:t.username,role:t.role}}catch(e){return null}}async function u(e="/login"){let t=await l();if(!t)try{let{redirect:t}=await a.e(585).then(a.bind(a,8585));t(e)}catch(t){return{redirect:e}}return{user:t}}},53:(e,t,a)=>{"use strict";a.a(e,async(e,s)=>{try{a.d(t,{db:()=>l,f:()=>o});var r=a(8683),n=a(2237),i=a(4893),o=a(7905);let e=process.env.DATABASE_URL;if(!e)throw Error("DATABASE_URL is not set");let c=globalThis.WebSocket||i.ZP;globalThis.WebSocket||(globalThis.WebSocket=c);let d=globalThis.__neonClient;d||(d=new n.KU({connectionString:e,fetchEndpoint:process.env.NEON_FETCH_ENDPOINT,webSocketConstructor:c}),await d.connect(),globalThis.__neonClient=d);let l=(0,r.t)(d,{schema:o});s()}catch(e){s(e)}},1)}};var t=require("../../../webpack-runtime.js");t.C(e);var a=e=>t(t.s=e),s=t.X(0,[276,840,153,891,169],()=>a(5483));module.exports=s})();

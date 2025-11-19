@@ -143,12 +143,15 @@ export default async function PosPage() {
       <template x-if="scanner.open">
         <div class="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" @click.self="closeScanner">
           <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg p-5 space-y-4">
-            <div class="flex items-center justify-between">
+            <div class="flex items-center justify-between flex-wrap gap-3">
               <div>
                 <p class="text-xs uppercase tracking-wider text-subtle font-semibold">Mode Kamera</p>
                 <h3 class="text-lg font-semibold text-strong">Scan Barcode Produk</h3>
               </div>
-              <button type="button" class="glass-button px-3 py-1 text-sm" @click="closeScanner">Tutup</button>
+              <div class="flex items-center gap-2">
+                <button type="button" class="glass-button alt px-3 py-1 text-sm" @click="toggleCameraFacing" x-text="cameraToggleLabel"></button>
+                <button type="button" class="glass-button px-3 py-1 text-sm" @click="closeScanner">Tutup</button>
+              </div>
             </div>
             <div class="rounded-xl overflow-hidden bg-black relative">
               <video x-ref="scanVideo" class="w-full aspect-video" autoplay playsinline muted></video>
@@ -213,9 +216,11 @@ export default async function PosPage() {
             scannerSupported: false,
             scannerReady: false,
             scanner: { open: false, detector: null, stream: null, raf: null, controls: null, zxing: null },
+            cameraFacing: 'environment',
             focusSize: 66,
             cameraStatus: '',
             zxingLoading: null,
+            audioCtx: null,
             init() {
               this.scannerSupported = typeof navigator !== 'undefined' && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
             },
@@ -282,6 +287,12 @@ export default async function PosPage() {
               if (/berhasil/i.test(this.cameraStatus)) return 'text-emerald-600';
               return 'text-warning-600 text-amber-600';
             },
+            get cameraFacingLabel() {
+              return this.cameraFacing === 'environment' ? 'Kamera Belakang' : 'Kamera Depan';
+            },
+            get cameraToggleLabel() {
+              return this.cameraFacing === 'environment' ? 'Gunakan Kamera Depan' : 'Gunakan Kamera Belakang';
+            },
             findProductByCode(value) {
               const raw = String(value ?? '').trim();
               if (!raw) return null;
@@ -309,15 +320,38 @@ export default async function PosPage() {
                 this.scanMessage = this.scanCode ? 'Kode tidak ditemukan.' : 'Isi kode terlebih dahulu.';
               }
             },
-            async openScanner() {
+            openScanner() {
               if (!this.scannerSupported) {
                 this.scanMessage = 'Perangkat tidak mendukung akses kamera.';
                 return;
               }
+              if (!this.scanner.open) {
+                this.scanner.open = true;
+              }
+              this.restartScanner();
+            },
+            toggleCameraFacing() {
+              this.cameraFacing = this.cameraFacing === 'environment' ? 'user' : 'environment';
+              if (this.scanner.open) {
+                this.restartScanner();
+              }
+            },
+            restartScanner() {
+              if (!this.scanner.open) return;
+              this.cleanupScannerStream();
               this.scannerReady = false;
-            this.scanMessage = 'Mengaktifkan kamera...';
-            this.cameraStatus = 'Mengaktifkan kamera...';
+              this.scanMessage = 'Mengaktifkan kamera...';
+              this.cameraStatus = 'Mengaktifkan kamera...';
+              this.$nextTick(() => {
+                this.startScannerSession();
+              });
+            },
+            async startScannerSession() {
+              if (!this.scanner.open) return;
+              const video = this.$refs.scanVideo;
+              if (!video) return;
               const hasNativeDetector = typeof window !== 'undefined' && 'BarcodeDetector' in window;
+              const facingLabel = this.cameraFacingLabel;
               if (hasNativeDetector) {
                 if (!this.scanner.detector) {
                   try {
@@ -328,19 +362,14 @@ export default async function PosPage() {
                   }
                 }
                 try {
-                  const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                  const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: this.cameraFacing } });
                   this.scanner.stream = stream;
-                  this.scanner.open = true;
-                  this.$nextTick(() => {
-                    const video = this.$refs.scanVideo;
-                    if (!video) return;
-                    video.srcObject = stream;
-                    video.play().catch(() => {});
-                    this.scanMessage = 'Kamera aktif, memindai kode...';
-                    this.cameraStatus = 'Kamera aktif, arahkan ke barcode.';
-                    this.markScannerReady(video);
-                    this.scanLoop();
-                  });
+                  video.srcObject = stream;
+                  video.play().catch(() => {});
+                  this.scanMessage = facingLabel + ' aktif, memindai kode...';
+                  this.cameraStatus = facingLabel + ' siap, arahkan ke barcode.';
+                  this.markScannerReady(video);
+                  this.scanLoop();
                 } catch (error) {
                   const msg = error.name === 'NotAllowedError' ? 'Izin kamera ditolak.' : 'Kamera gagal diaktifkan.';
                   this.scanMessage = msg;
@@ -354,42 +383,38 @@ export default async function PosPage() {
                   this.cameraStatus = this.scanMessage;
                   return;
                 }
-                this.scanner.open = true;
-                this.$nextTick(() => {
-                  const video = this.$refs.scanVideo;
-                  if (!video) return;
-                  if (!this.scanner.zxing && window.ZXing?.BrowserMultiFormatReader) {
-                    this.scanner.zxing = new window.ZXing.BrowserMultiFormatReader();
-                  }
-                  if (!this.scanner.zxing) {
-                    this.scanMessage = 'Pemindai ZXing tidak tersedia.';
-                    return;
-                  }
-                  this.markScannerReady(video);
-                  this.scanMessage = 'Kamera aktif, memindai kode...';
-                  this.cameraStatus = 'Kamera aktif, arahkan ke barcode.';
-                  this.scanner.zxing.decodeFromVideoDevice(null, video, (result, err, controls) => {
-                    if (!this.scanner.open) return;
-                    if (controls && !this.scanner.controls) this.scanner.controls = controls;
-                    if (result) {
-                      const value = typeof result.getText === 'function' ? result.getText() : result.text || '';
-                      if (value) this.handleDetectedCode(value);
-                    } else if (err && err.name === 'NotAllowedError') {
-                      this.scanMessage = 'Izin kamera ditolak.';
-                      this.cameraStatus = this.scanMessage;
-                      this.closeScanner();
-                    }
-                  }).then((controls) => {
-                    this.scanner.controls = controls;
-                  }).catch(() => {
-                    this.scanMessage = 'Gagal mengaktifkan kamera.';
+                if (!this.scanner.zxing && window.ZXing?.BrowserMultiFormatReader) {
+                  this.scanner.zxing = new window.ZXing.BrowserMultiFormatReader();
+                }
+                if (!this.scanner.zxing) {
+                  this.scanMessage = 'Pemindai ZXing tidak tersedia.';
+                  return;
+                }
+                this.markScannerReady(video);
+                this.scanMessage = facingLabel + ' aktif, memindai kode...';
+                this.cameraStatus = facingLabel + ' siap, arahkan ke barcode.';
+                const constraints = { audio: false, video: { facingMode: this.cameraFacing } };
+                this.scanner.zxing.decodeFromConstraints(constraints, video, (result, err, controls) => {
+                  if (!this.scanner.open) return;
+                  if (controls && !this.scanner.controls) this.scanner.controls = controls;
+                  if (result) {
+                    const value = typeof result.getText === 'function' ? result.getText() : result.text || '';
+                    if (value) this.handleDetectedCode(value);
+                  } else if (err && err.name === 'NotAllowedError') {
+                    this.scanMessage = 'Izin kamera ditolak.';
                     this.cameraStatus = this.scanMessage;
                     this.closeScanner();
-                  });
+                  }
+                }).then((controls) => {
+                  this.scanner.controls = controls;
+                }).catch(() => {
+                  this.scanMessage = 'Gagal mengaktifkan kamera.';
+                  this.cameraStatus = this.scanMessage;
+                  this.closeScanner();
                 });
               }
             },
-            closeScanner() {
+            cleanupScannerStream() {
               if (this.scanner.raf) {
                 cancelAnimationFrame(this.scanner.raf);
                 this.scanner.raf = null;
@@ -405,6 +430,14 @@ export default async function PosPage() {
               if (this.scanner.zxing) {
                 this.scanner.zxing.reset();
               }
+              const video = this.$refs && this.$refs.scanVideo ? this.$refs.scanVideo : null;
+              if (video) {
+                if (typeof video.pause === 'function') video.pause();
+                video.srcObject = null;
+              }
+            },
+            closeScanner() {
+              this.cleanupScannerStream();
               this.scanner.open = false;
               this.scannerReady = false;
               this.cameraStatus = '';
@@ -438,10 +471,12 @@ export default async function PosPage() {
               if (!video) return;
               if (video.readyState >= 2) {
                 this.scannerReady = true;
+                if (video.srcObject) this.scanner.stream = video.srcObject;
                 return;
               }
               const handler = () => {
                 this.scannerReady = true;
+                if (video.srcObject) this.scanner.stream = video.srcObject;
                 video.removeEventListener('loadeddata', handler);
                 video.removeEventListener('canplay', handler);
               };
@@ -467,8 +502,32 @@ export default async function PosPage() {
             handleDetectedCode(value) {
               this.scanCode = value;
               this.scanMessage = 'Kode terdeteksi: ' + value;
+              this.playScanSound();
               this.addByCode();
               this.closeScanner();
+            },
+            playScanSound() {
+              try {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                if (!AudioCtx) return;
+                if (!this.audioCtx) {
+                  this.audioCtx = new AudioCtx();
+                }
+                const ctx = this.audioCtx;
+                if (ctx.state === 'suspended' && typeof ctx.resume === 'function') ctx.resume();
+                const oscillator = ctx.createOscillator();
+                const gain = ctx.createGain();
+                oscillator.type = 'sine';
+                oscillator.frequency.value = 880;
+                gain.gain.value = 0.15;
+                oscillator.connect(gain);
+                gain.connect(ctx.destination);
+                const now = ctx.currentTime;
+                oscillator.start(now);
+                oscillator.stop(now + 0.18);
+              } catch (error) {
+                console.warn('Gagal memutar suara scan', error);
+              }
             },
             async captureFrame() {
               const video = this.$refs.scanVideo;
@@ -485,7 +544,7 @@ export default async function PosPage() {
               const ctx = canvas.getContext('2d');
               ctx.drawImage(video, 0, 0, width, height);
               this.scanMessage = 'Memindai dari foto...';
-               this.cameraStatus = 'Memindai dari foto...';
+              this.cameraStatus = 'Memindai dari foto...';
               if (this.scanner.detector) {
                 try {
                   const codes = await this.scanner.detector.detect(canvas);

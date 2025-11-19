@@ -17,5 +17,7 @@ export const STANDARD_CATEGORIES = [
   'Bumbu Dapur',
   'Sabun',
   'Kebutuhan Rumah Tangga',
+  'Tembakau',
+  'Sampo',
+  'Obat-obatan',
 ];
-

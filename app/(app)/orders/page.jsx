@@ -51,13 +51,13 @@ export default async function OrdersPage({ searchParams }) {
     <div className="page-stack animate-fade-in">
       <div className="section-heading">
         <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand/10 text-brand text-xs font-semibold uppercase tracking-wider w-max">Riwayat Transaksi</span>
-        <h1 className="heading-xl">Riwayat Orders</h1>
+        <h1 className="heading-xl">Riwayat Pesanan</h1>
         <p className="text-lead">Pantau transaksi terbaru, akses struk, dan ikuti performa kasir dengan tampilan yang lega.</p>
       </div>
 
       <div className="section-card grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <div className="metric-card">
-          <span>Total order ditampilkan</span>
+          <span>Total pesanan ditampilkan</span>
           <strong>{orders.length} transaksi</strong>
         </div>
         <div className="metric-card" style={{ background: 'rgba(15,118,110,0.08)', borderColor: 'rgba(15,118,110,0.2)' }}>
@@ -101,14 +101,14 @@ export default async function OrdersPage({ searchParams }) {
         </div>
         <div className="filter-actions">
           <button type="submit" className="glass-button px-4 py-2 font-semibold">Terapkan</button>
-          <a href="/orders" className="glass-button alt px-4 py-2 font-semibold">Reset</a>
+          <a href="/orders" className="glass-button alt px-4 py-2 font-semibold">Atur Ulang</a>
         </div>
       </form>
 
       <div className="table-card">
         <div className="table-toolbar">
           <div>
-            <h2 className="text-xl font-semibold text-strong">Daftar Orders</h2>
+            <h2 className="text-xl font-semibold text-strong">Daftar Pesanan</h2>
             <p className="text-sm text-muted">Klik struk untuk melihat detail atau cetak ulang.</p>
           </div>
           <span className="badge-soft">{orders.length} entri</span>
@@ -147,7 +147,7 @@ export default async function OrdersPage({ searchParams }) {
                           Lihat Struk
                         </a>
                         <a className="glass-button alt px-3 py-2 text-sm" target="_blank" href={`/orders/${o.id}/receipt?print=1`}>
-                          Print
+                          Cetak
                         </a>
                       </div>
                     </td>
