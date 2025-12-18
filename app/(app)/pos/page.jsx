@@ -221,8 +221,11 @@ export default async function PosPage() {
             cameraStatus: '',
             zxingLoading: null,
             audioCtx: null,
+            sync: { pushTimer: null, pollTimer: null, inFlight: false, lastUpdatedAt: null, suppressNextPush: false },
             init() {
               this.scannerSupported = typeof navigator !== 'undefined' && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+              this.loadCartFromServer();
+              this.startCartPolling();
             },
             filteredProducts() {
               const keyword = (this.search || '').trim().toLowerCase();
@@ -243,6 +246,75 @@ export default async function PosPage() {
             setCategory(value) {
               this.activeCategory = value || '';
             },
+            mapServerItems(serverItems) {
+              const list = Array.isArray(serverItems) ? serverItems : [];
+              const byId = new Map(this.products.map((p) => [p.id, p]));
+              const mapped = [];
+              for (const raw of list) {
+                const productId = parseInt(raw?.product_id ?? raw?.id, 10);
+                const qty = Math.max(1, parseInt(raw?.qty ?? 0, 10) || 1);
+                const p = byId.get(productId);
+                if (p) mapped.push({ id: p.id, name: p.name, price: p.price, qty });
+              }
+              return mapped;
+            },
+            queueSync() {
+              if (this.sync.pushTimer) clearTimeout(this.sync.pushTimer);
+              this.sync.pushTimer = setTimeout(() => this.pushCart(), 450);
+            },
+            async pushCart() {
+              if (this.sync.inFlight) return;
+              this.sync.inFlight = true;
+              const payload = {
+                items: this.items.map((i) => ({ product_id: i.id, qty: i.qty })),
+              };
+              try {
+                const res = await fetch('/api/cart', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(payload),
+                  cache: 'no-store',
+                });
+                const data = await res.json().catch(() => ({}));
+                if (res.ok && data?.updated_at) {
+                  this.sync.lastUpdatedAt = data.updated_at;
+                }
+              } catch (_) {
+                // Diamkan; akan coba sinkron berikutnya
+              } finally {
+                this.sync.inFlight = false;
+              }
+            },
+            async loadCartFromServer(isPolling = false) {
+              try {
+                const res = await fetch('/api/cart', { cache: 'no-store' });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data?.error || 'Gagal memuat keranjang');
+                const updatedAt = data?.updated_at || null;
+                const shouldApply = !isPolling || (updatedAt && updatedAt !== this.sync.lastUpdatedAt);
+                if (shouldApply) {
+                  const mapped = this.mapServerItems(data?.items || []);
+                  this.sync.suppressNextPush = true;
+                  this.items = mapped;
+                  this.recalc(true);
+                  this.sync.suppressNextPush = false;
+                  this.sync.lastUpdatedAt = updatedAt;
+                }
+              } catch (_) {
+                // Abaikan error polling
+              }
+            },
+            startCartPolling() {
+              if (this.sync.pollTimer) return;
+              this.sync.pollTimer = setInterval(() => this.loadCartFromServer(true), 4000);
+            },
+            markLocalChange() {
+              if (this.sync.suppressNextPush) {
+                this.sync.suppressNextPush = false;
+                return;
+              }
+              this.queueSync();
+            },
             add(product) {
               const idx = this.items.findIndex((item) => item.id === product.id);
               if (idx >= 0) {
@@ -261,6 +333,7 @@ export default async function PosPage() {
               this.items = [];
               this.cash_received = 0;
               this.message = '';
+              this.markLocalChange();
             },
             total() {
               return this.items.reduce((sum, item) => sum + item.price * item.qty, 0);
@@ -268,8 +341,9 @@ export default async function PosPage() {
             change() {
               return Math.max(0, (this.cash_received || 0) - this.total());
             },
-            recalc() {
+            recalc(skipSync = false) {
               this.items = this.items.map((item) => ({ ...item, qty: Math.max(1, parseInt(item.qty || 1, 10) || 1) }));
+              if (!skipSync) this.markLocalChange();
             },
             get focusBoxStyle() {
               const size = Math.min(95, Math.max(40, this.focusSize || 60));
@@ -607,6 +681,7 @@ export default async function PosPage() {
                 this.items = [];
                 this.cash_received = 0;
                 this.message = 'Transaksi berhasil.';
+                await this.pushCart();
                 if (autoPrint && data.redirectUrl) {
                   window.location.href = data.redirectUrl;
                 } else {
