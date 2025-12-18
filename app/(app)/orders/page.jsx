@@ -5,8 +5,9 @@ import { sql } from 'drizzle-orm';
 export const dynamic = 'force-dynamic';
 
 export default async function OrdersPage({ searchParams }) {
-  const { redirect } = await requireUserOrRedirect();
+  const { user, redirect } = await requireUserOrRedirect();
   if (redirect) return null;
+  const isAdmin = user?.role === 'admin';
   const todayStr = new Date().toISOString().slice(0, 10);
   const fromInput = (searchParams?.from ?? todayStr).trim() || todayStr;
   const toInput = (searchParams?.to ?? todayStr).trim() || todayStr;
@@ -46,6 +47,37 @@ export default async function OrdersPage({ searchParams }) {
   const formatIDR = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 });
   const paymentLabel = paymentFilter === 'all' ? 'Semua metode' : paymentFilter.toUpperCase();
   const cashierLabel = cashierInput || 'Semua kasir';
+  const deleteScript = String.raw`
+(function(){
+  function ready(fn){ if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fn, { once: true }); else fn(); }
+  ready(() => {
+    document.querySelectorAll('[data-delete-order]').forEach((btn) => {
+      btn.addEventListener('click', async (ev) => {
+        ev.preventDefault();
+        const id = btn.getAttribute('data-delete-order');
+        if(!id) return;
+        if(!window.confirm('Hapus transaksi #' + id + '? Stok terkait akan dikembalikan.')) return;
+        const originalText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = 'Menghapus...';
+        try{
+          const res = await fetch('/api/orders/' + id, { method: 'DELETE' });
+          const data = await res.json().catch(()=>({}));
+          if(!res.ok) throw new Error(data.error || 'Gagal menghapus');
+          const row = btn.closest('tr');
+          if(row) row.remove();
+          alert('Transaksi #' + id + ' dihapus.');
+        }catch(err){
+          alert(err?.message || 'Gagal menghapus transaksi');
+        }finally{
+          btn.disabled = false;
+          btn.textContent = originalText;
+        }
+      });
+    });
+  });
+})();
+`;
 
   return (
     <div className="page-stack animate-fade-in">
@@ -149,6 +181,15 @@ export default async function OrdersPage({ searchParams }) {
                         <a className="glass-button alt px-3 py-2 text-sm" target="_blank" href={`/orders/${o.id}/receipt?print=1`}>
                           Cetak
                         </a>
+                        {isAdmin && (
+                          <button
+                            type="button"
+                            className="glass-button danger px-3 py-2 text-sm"
+                            data-delete-order={o.id}
+                          >
+                            Hapus
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -158,7 +199,7 @@ export default async function OrdersPage({ searchParams }) {
           </table>
         </div>
       </div>
+      {isAdmin && <script dangerouslySetInnerHTML={{ __html: deleteScript }} />}
     </div>
   );
 }
-

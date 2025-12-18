@@ -18,11 +18,7 @@ export async function POST(req) {
   const form = await req.formData();
   const username = String(form.get('username') || '').trim();
   const password = String(form.get('password') || '');
-  let role = String(form.get('role') || 'cashier').trim().toLowerCase();
-
-  if (!['admin', 'cashier'].includes(role)) {
-    role = 'cashier';
-  }
+  const role = 'cashier';
   if (!username || username.length < 3) {
     const url = new URL('/users', req.url);
     url.searchParams.set('error', 'invalid-username');

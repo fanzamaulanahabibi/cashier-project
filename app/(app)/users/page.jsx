@@ -35,7 +35,7 @@ export default async function UsersPage({ searchParams }) {
 
   const feedback = (() => {
     if (successUser) {
-      const roleLabel = successRole === 'admin' ? 'Admin' : 'Kasir';
+      const roleLabel = 'Kasir';
       return {
         tone: 'success',
         message: `Akun '${successUser}' berhasil dibuat dengan role ${roleLabel}.`,
@@ -74,8 +74,8 @@ export default async function UsersPage({ searchParams }) {
         <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand/10 text-brand text-xs font-semibold uppercase tracking-wider w-max">
           Manajemen Pengguna
         </span>
-        <h1 className="heading-xl">Pengguna & Role</h1>
-        <p className="text-lead">Kelola akun admin dan kasir yang dapat mengakses aplikasi POS.</p>
+        <h1 className="heading-xl">Pengguna</h1>
+        <p className="text-lead">Kelola akun kasir yang dapat mengakses aplikasi POS.</p>
       </div>
 
       {feedback && (
@@ -158,15 +158,8 @@ export default async function UsersPage({ searchParams }) {
                 className="glass-input w-full px-3 py-2"
                 placeholder="Minimal 8 karakter"
               />
-              <p className="text-xs text-muted mt-1">Bagikan password ini ke kasir dan minta mereka mengganti setelah login.</p>
             </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Role</label>
-              <select name="role" defaultValue="cashier" className="glass-input w-full px-3 py-2">
-                <option value="cashier">Kasir</option>
-                <option value="admin">Admin</option>
-              </select>
-            </div>
+            <input type="hidden" name="role" value="cashier" />
             <div className="form-span-2 section-actions" style={{ justifyContent: 'flex-start', marginTop: '12px' }}>
               <button className="glass-button px-4 py-2.5 font-semibold">Buat Akun</button>
               <p className="text-xs text-muted">Pastikan username unik dan password aman.</p>

@@ -1,1 +1,1 @@
-{"version":1,"functions":{"/orders":{},"/products":{},"/reports/daily":{},"/reports/monthly":{},"/users":{},"/orders/[id]/receipt":{},"/account/password":{},"/pos":{},"/login":{}}}
+{"version":1,"functions":{"/orders":{},"/products":{},"/reports/daily":{},"/reports/monthly":{},"/users":{},"/orders/[id]/receipt":{},"/login":{},"/pos":{},"/account/password":{}}}
