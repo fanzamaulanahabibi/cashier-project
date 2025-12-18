@@ -215,7 +215,7 @@ export default async function PosPage() {
             scanMessage: '',
             scannerSupported: false,
             scannerReady: false,
-            scanner: { open: false, detector: null, stream: null, raf: null, controls: null, zxing: null },
+            scanner: { open: false, detector: null, stream: null, raf: null, controls: null, zxing: null, delayTimeout: null, lastScanAt: 0, lastScanCode: '', cooldownMs: 900 },
             cameraFacing: 'environment',
             focusSize: 66,
             cameraStatus: '',
@@ -489,6 +489,10 @@ export default async function PosPage() {
               }
             },
             cleanupScannerStream() {
+              if (this.scanner.delayTimeout) {
+                clearTimeout(this.scanner.delayTimeout);
+                this.scanner.delayTimeout = null;
+              }
               if (this.scanner.raf) {
                 cancelAnimationFrame(this.scanner.raf);
                 this.scanner.raf = null;
@@ -531,7 +535,13 @@ export default async function PosPage() {
                   if (!this.scanner.open) return;
                   const value = (codes && codes[0] && codes[0].rawValue) ? codes[0].rawValue.trim() : '';
                   if (value) {
-                    this.handleDetectedCode(value);
+                    const accepted = this.handleDetectedCode(value);
+                    const delay = accepted ? this.scanner.cooldownMs : 200;
+                    if (this.scanner.delayTimeout) clearTimeout(this.scanner.delayTimeout);
+                    this.scanner.delayTimeout = setTimeout(() => {
+                      if (!this.scanner.open) return;
+                      this.scanner.raf = requestAnimationFrame(detect);
+                    }, delay);
                   } else {
                     this.scanner.raf = requestAnimationFrame(detect);
                   }
@@ -574,11 +584,22 @@ export default async function PosPage() {
               return this.zxingLoading;
             },
             handleDetectedCode(value) {
-              this.scanCode = value;
-              this.scanMessage = 'Kode terdeteksi: ' + value;
+              const code = String(value || '').trim();
+              if (!code) return false;
+              const now = Date.now();
+              const isSameRecent = code === this.scanner.lastScanCode && now - this.scanner.lastScanAt < this.scanner.cooldownMs;
+              if (isSameRecent) {
+                this.scanMessage = 'Kode sama terdeteksi, tunggu sebentar...';
+                return false;
+              }
+              this.scanner.lastScanCode = code;
+              this.scanner.lastScanAt = now;
+              this.scanCode = code;
+              this.scanMessage = 'Kode terdeteksi: ' + code;
+              this.cameraStatus = 'Kode terdeteksi.';
               this.playScanSound();
               this.addByCode();
-              this.closeScanner();
+              return true;
             },
             playScanSound() {
               try {
